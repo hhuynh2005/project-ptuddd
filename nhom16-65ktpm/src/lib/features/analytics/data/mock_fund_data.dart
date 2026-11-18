@@ -1,9 +1,9 @@
-/// Mock data riêng cho Sprint 1 — KHÔNG import model của bạn khác.
-/// Mục đích: Analytics & Admin Review chạy được trước khi dữ liệu thật
-/// (FundTransactionModel của Lê Anh Tuấn, ProofModel của Kiên) sẵn sàng.
-/// Sprint 4: xóa file này, đưa List thật vào AnalyticsService thay thế.
-/// Ngày trong mock dùng DateTime.now() trừ đi số ngày, nên biểu đồ
-/// luôn có dữ liệu dù chạy vào ngày nào.
+// Mock data riêng cho Sprint 1 — KHÔNG import model của bạn khác.
+// Mục đích: Analytics & Admin Review chạy được trước khi dữ liệu thật
+// (FundTransactionModel của Lê Anh Tuấn, ProofModel của Kiên) sẵn sàng.
+// Sprint 4: xóa file này, đưa List thật vào AnalyticsService thay thế.
+// Ngày trong mock dùng DateTime.now() trừ đi số ngày, nên biểu đồ
+// luôn có dữ liệu dù chạy vào ngày nào.
 
 /// Một giao dịch quỹ (bản mock của FundTransactionModel).
 class MockFundTx {

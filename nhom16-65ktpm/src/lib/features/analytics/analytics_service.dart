@@ -1,9 +1,9 @@
 import 'data/mock_fund_data.dart';
 
-/// Logic thuần, KHÔNG tính toán trong widget.
-/// Nhận vào List<MockFundTx>, trả số liệu cho các biểu đồ.
-/// Sprint 4: chỉ đổi đầu vào thành List<FundTransactionModel> thật
-/// (cùng các trường isIncome/amount/date/challenge) — các hàm giữ nguyên.
+// Logic thuần, KHÔNG tính toán trong widget.
+// Nhận vào 'List<MockFundTx>', trả số liệu cho các biểu đồ.
+// Sprint 4: chỉ đổi đầu vào thành 'List<FundTransactionModel>' thật
+// (cùng các trường isIncome/amount/date/challenge) — các hàm giữ nguyên.
 
 class BalancePoint {
   const BalancePoint(this.label, this.balance);
