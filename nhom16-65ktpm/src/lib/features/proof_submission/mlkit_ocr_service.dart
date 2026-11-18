@@ -26,6 +26,14 @@ class OcrScanResult {
   final String validationMessage;
 
   bool get hasText => rawText.trim().isNotEmpty;
+
+  /// Nhãn tóm tắt trạng thái kiểm tra sơ bộ từ AI OCR.
+  String get statusLabel {
+    if (!hasText) return 'Chưa có văn bản';
+    if (isEarlyWakeUpValid) return 'Đạt chuẩn giờ dậy sớm';
+    if (extractedTime != null) return 'Đã nhận diện giờ ($extractedTime)';
+    return 'Cần kiểm tra thủ công';
+  }
 }
 
 /// Dịch vụ AI OCR sử dụng Google ML Kit Text Recognition để đọc chữ và thời gian
