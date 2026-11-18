@@ -25,7 +25,7 @@ class CashflowBarChart extends StatelessWidget {
       child: BarChart(
         BarChartData(
           maxY: maxVal * 1.2 + 10000,
-          gridData: const FlGridData(show: true),
+          gridData: FlGridData(show: true, horizontalInterval: maxVal / 4),
           borderData: FlBorderData(show: true),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(
@@ -37,6 +37,7 @@ class CashflowBarChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
+                interval: maxVal / 4,
                 reservedSize: 48,
                 getTitlesWidget: (value, meta) => Text(
                   '${(value / 1000).round()}k',
