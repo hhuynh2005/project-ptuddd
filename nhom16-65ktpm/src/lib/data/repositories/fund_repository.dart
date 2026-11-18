@@ -58,3 +58,4 @@ class FundRepository {
   Future<bool> rejectProof(String proofId, {required String reason}) =>
       _db.rejectProof(proofId, reason: reason);
 }
+
