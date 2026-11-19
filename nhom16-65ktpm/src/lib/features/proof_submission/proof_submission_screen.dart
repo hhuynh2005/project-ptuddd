@@ -192,6 +192,15 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
 
   Future<void> _submitProof() async {
     final memberName = _memberNameController.text.trim();
+    if (memberName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập họ và tên thành viên trước khi nộp minh chứng.'),
+        ),
+      );
+      return;
+    }
+
     final location = _locationController.text.trim();
     final userNote = _noteController.text.trim();
     final now = DateTime.now();
@@ -208,7 +217,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       id: 'proof_${now.millisecondsSinceEpoch}',
       challengeId: _selectedChallenge.id,
       challengeTitle: _selectedChallenge.title,
-      memberName: memberName.isEmpty ? 'Thành viên Nhóm 16' : memberName,
+      memberName: memberName,
       imagePath: imagePath,
       ocrExtractedText: _ocrResult?.rawText ?? '',
       detectedTime: _ocrResult?.extractedTime,
