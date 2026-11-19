@@ -1,16 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../analytics/data/mock_fund_data.dart';
 
 // Màn hình Kiểm duyệt minh chứng (Admin).
-// Giai đoạn 2: xây dựng giao diện danh sách minh chứng chờ duyệt
-// bằng dữ liệu mẫu; xử lý Duyệt/Từ chối thuộc giai đoạn 3.
+// Giai đoạn 2: giao diện danh sách minh chứng chờ duyệt bằng dữ liệu
+// mẫu, xếp cũ nhất trước để duyệt theo thứ tự nộp.
+// Xử lý Duyệt/Từ chối thuộc giai đoạn 3.
 class AdminReviewScreen extends StatelessWidget {
   const AdminReviewScreen({super.key});
 
+  String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
+
   @override
   Widget build(BuildContext context) {
+    final pending = List.of(mockProofs)
+      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
     return Scaffold(
       appBar: AppBar(title: const Text('Kiểm duyệt minh chứng')),
-      body: const Center(child: Text('Chưa có minh chứng nào đang chờ duyệt.')),
+      body: pending.isEmpty
+          ? const Center(child: Text('Chưa có minh chứng nào đang chờ duyệt.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: pending.length,
+              itemBuilder: (ctx, i) {
+                final proof = pending[i];
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text(
+                        proof.memberName.isNotEmpty ? proof.memberName[0] : '?',
+                      ),
+                    ),
+                    title: Text(proof.challengeName),
+                    subtitle: Text(
+                      '${proof.memberName} • ${_time(proof.submittedAt)}',
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
