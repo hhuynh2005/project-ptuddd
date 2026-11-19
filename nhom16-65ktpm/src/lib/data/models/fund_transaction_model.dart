@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:intl/intl.dart';
+
 enum TransactionType {
   thu, // Gây quỹ từ thử thách hoàn thành hoặc nhà tài trợ
   chi, // Giải ngân từ thiện
@@ -30,6 +33,20 @@ class FundTransactionModel {
   });
 
   bool get isIncome => type == TransactionType.thu;
+  bool get isExpense => type == TransactionType.chi;
+
+  String get typeDisplay => isIncome ? 'Thu' : 'Chi';
+
+  String get formattedAmount {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final prefix = isIncome ? '+' : '-';
+    return '$prefix${formatter.format(amount)}';
+  }
+
+  String get formattedCreatedAt {
+    final formatter = DateFormat('HH:mm - dd/MM/yyyy');
+    return formatter.format(createdAt);
+  }
 
   /// Chuyển đối tượng thành Map để lưu vào SQLite
   Map<String, dynamic> toMap() {
@@ -66,6 +83,17 @@ class FundTransactionModel {
     );
   }
 
+  /// JSON Serialization
+  Map<String, dynamic> toJson() => toMap();
+
+  factory FundTransactionModel.fromJson(Map<String, dynamic> json) =>
+      FundTransactionModel.fromMap(json);
+
+  String toJsonString() => jsonEncode(toJson());
+
+  factory FundTransactionModel.fromJsonString(String source) =>
+      FundTransactionModel.fromJson(jsonDecode(source) as Map<String, dynamic>);
+
   FundTransactionModel copyWith({
     String? id,
     String? proofId,
@@ -91,5 +119,36 @@ class FundTransactionModel {
       createdAt: createdAt ?? this.createdAt,
     );
   }
-}
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FundTransactionModel &&
+        other.id == id &&
+        other.proofId == proofId &&
+        other.type == type &&
+        other.amount == amount &&
+        other.title == title &&
+        other.category == category &&
+        other.proofImagePath == proofImagePath &&
+        other.note == note &&
+        other.recipientOrSponsor == recipientOrSponsor &&
+        other.createdAt == createdAt;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      proofId,
+      type,
+      amount,
+      title,
+      category,
+      proofImagePath,
+      note,
+      recipientOrSponsor,
+      createdAt,
+    );
+  }
+}
