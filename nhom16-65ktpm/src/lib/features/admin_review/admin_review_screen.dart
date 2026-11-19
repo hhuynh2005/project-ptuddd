@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../analytics/data/mock_fund_data.dart';
+import 'widgets/proof_card.dart';
 
 // Màn hình Kiểm duyệt minh chứng (Admin).
 // Giai đoạn 2: giao diện danh sách minh chứng chờ duyệt bằng dữ liệu
@@ -25,18 +26,10 @@ class AdminReviewScreen extends StatelessWidget {
               itemCount: pending.length,
               itemBuilder: (ctx, i) {
                 final proof = pending[i];
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(
-                        proof.memberName.isNotEmpty ? proof.memberName[0] : '?',
-                      ),
-                    ),
-                    title: Text(proof.challengeName),
-                    subtitle: Text(
-                      '${proof.memberName} • ${_time(proof.submittedAt)}',
-                    ),
-                  ),
+                return ProofCard(
+                  proof: proof,
+                  timeText: _time(proof.submittedAt),
+                  onTap: () {},
                 );
               },
             ),
