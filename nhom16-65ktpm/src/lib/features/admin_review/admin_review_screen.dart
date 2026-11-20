@@ -7,8 +7,9 @@ import 'widgets/proof_card.dart';
 // Màn hình Kiểm duyệt minh chứng (Admin).
 // Giai đoạn 2: danh sách minh chứng chờ duyệt bằng dữ liệu mẫu,
 // xếp cũ nhất trước để duyệt theo thứ tự nộp.
-// Commit 5: Duyệt/Từ chối ở mức mock — chỉ gỡ khỏi danh sách chờ
-// trong bộ nhớ và báo SnackBar; lưu thật + cộng quỹ là giai đoạn sau.
+// Commit 5: Duyệt/Từ chối ở mức mock — gỡ khỏi danh sách chờ
+// trong bộ nhớ và báo SnackBar; lưu thật là giai đoạn sau.
+// Commit 6: header tóm tắt số minh chứng + tổng tiền đang chờ.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -30,6 +31,9 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
 
   String _money(double v) =>
       '${NumberFormat.decimalPattern('vi_VN').format(v.round())} đ';
+
+  double get _pendingTotal =>
+      _pending.fold(0, (sum, p) => sum + p.sponsorAmount);
 
   void _approve(MockProof proof) {
     setState(() => _pending.remove(proof));
@@ -142,17 +146,42 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
       appBar: AppBar(title: const Text('Kiểm duyệt minh chứng')),
       body: _pending.isEmpty
           ? const Center(child: Text('Chưa có minh chứng nào đang chờ duyệt.'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _pending.length,
-              itemBuilder: (ctx, i) {
-                final proof = _pending[i];
-                return ProofCard(
-                  proof: proof,
-                  timeText: _time(proof.submittedAt),
-                  onTap: () => _showDetail(proof),
-                );
-              },
+          : Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Đang chờ duyệt: ${_pending.length} minh chứng',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tổng tiền tài trợ đang chờ: '
+                        '${_money(_pendingTotal)}',
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _pending.length,
+                    itemBuilder: (ctx, i) {
+                      final proof = _pending[i];
+                      return ProofCard(
+                        proof: proof,
+                        timeText: _time(proof.submittedAt),
+                        onTap: () => _showDetail(proof),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
     );
   }
