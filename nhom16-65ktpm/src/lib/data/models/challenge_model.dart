@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:intl/intl.dart';
+
 /// Model cho bảng `challenges`
 class ChallengeModel {
   final String id;
@@ -17,6 +20,19 @@ class ChallengeModel {
     required this.icon,
     this.isActive = true,
   });
+
+  /// Kiểm tra dữ liệu hợp lệ
+  bool isValid() {
+    return id.trim().isNotEmpty &&
+        title.trim().isNotEmpty &&
+        rewardAmount >= 0;
+  }
+
+  /// Định dạng số tiền thưởng dạng VND (vd: 20.000 đ)
+  String get formattedRewardAmount {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return formatter.format(rewardAmount);
+  }
 
   /// Chuyển đối tượng thành Map để lưu vào SQLite
   Map<String, dynamic> toMap() {
@@ -44,6 +60,36 @@ class ChallengeModel {
     );
   }
 
+  /// JSON Serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'rewardAmount': rewardAmount,
+      'category': category,
+      'icon': icon,
+      'isActive': isActive,
+    };
+  }
+
+  factory ChallengeModel.fromJson(Map<String, dynamic> json) {
+    return ChallengeModel(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      rewardAmount: (json['rewardAmount'] as num).toDouble(),
+      category: json['category'] as String,
+      icon: json['icon'] as String,
+      isActive: json['isActive'] as bool? ?? true,
+    );
+  }
+
+  String toJsonString() => jsonEncode(toJson());
+
+  factory ChallengeModel.fromJsonString(String source) =>
+      ChallengeModel.fromJson(jsonDecode(source) as Map<String, dynamic>);
+
   ChallengeModel copyWith({
     String? id,
     String? title,
@@ -63,5 +109,30 @@ class ChallengeModel {
       isActive: isActive ?? this.isActive,
     );
   }
-}
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChallengeModel &&
+        other.id == id &&
+        other.title == title &&
+        other.description == description &&
+        other.rewardAmount == rewardAmount &&
+        other.category == category &&
+        other.icon == icon &&
+        other.isActive == isActive;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      title,
+      description,
+      rewardAmount,
+      category,
+      icon,
+      isActive,
+    );
+  }
+}

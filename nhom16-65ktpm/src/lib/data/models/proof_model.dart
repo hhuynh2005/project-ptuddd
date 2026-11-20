@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:intl/intl.dart';
+
 enum ProofStatus {
   pending,
   approved,
@@ -33,6 +36,31 @@ class ProofModel {
     this.note = '',
     this.adminFeedback,
   });
+
+  bool get isPending => status == ProofStatus.pending;
+  bool get isApproved => status == ProofStatus.approved;
+  bool get isRejected => status == ProofStatus.rejected;
+
+  String get statusDisplay {
+    switch (status) {
+      case ProofStatus.pending:
+        return 'Chờ duyệt';
+      case ProofStatus.approved:
+        return 'Đã duyệt';
+      case ProofStatus.rejected:
+        return 'Từ chối';
+    }
+  }
+
+  String get formattedRewardAmount {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return formatter.format(rewardAmount);
+  }
+
+  String get formattedSubmittedAt {
+    final formatter = DateFormat('HH:mm - dd/MM/yyyy');
+    return formatter.format(submittedAt);
+  }
 
   /// Chuyển đối tượng thành Map để lưu vào SQLite
   Map<String, dynamic> toMap() {
@@ -73,6 +101,17 @@ class ProofModel {
     );
   }
 
+  /// JSON Serialization
+  Map<String, dynamic> toJson() => toMap();
+
+  factory ProofModel.fromJson(Map<String, dynamic> json) =>
+      ProofModel.fromMap(json);
+
+  String toJsonString() => jsonEncode(toJson());
+
+  factory ProofModel.fromJsonString(String source) =>
+      ProofModel.fromJson(jsonDecode(source) as Map<String, dynamic>);
+
   ProofModel copyWith({
     String? id,
     String? challengeId,
@@ -102,5 +141,40 @@ class ProofModel {
       adminFeedback: adminFeedback ?? this.adminFeedback,
     );
   }
-}
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ProofModel &&
+        other.id == id &&
+        other.challengeId == challengeId &&
+        other.challengeTitle == challengeTitle &&
+        other.memberName == memberName &&
+        other.imagePath == imagePath &&
+        other.ocrExtractedText == ocrExtractedText &&
+        other.detectedTime == detectedTime &&
+        other.submittedAt == submittedAt &&
+        other.status == status &&
+        other.rewardAmount == rewardAmount &&
+        other.note == note &&
+        other.adminFeedback == adminFeedback;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      challengeId,
+      challengeTitle,
+      memberName,
+      imagePath,
+      ocrExtractedText,
+      detectedTime,
+      submittedAt,
+      status,
+      rewardAmount,
+      note,
+      adminFeedback,
+    );
+  }
+}
