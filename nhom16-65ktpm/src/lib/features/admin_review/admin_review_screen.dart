@@ -10,6 +10,7 @@ import 'widgets/proof_card.dart';
 // Commit 5: Duyệt/Từ chối ở mức mock — gỡ khỏi danh sách chờ
 // trong bộ nhớ và báo SnackBar; lưu thật là giai đoạn sau.
 // Commit 6: header tóm tắt số minh chứng + tổng tiền đang chờ.
+// Commit 7: hoàn thiện trạng thái rỗng khi xử lý hết danh sách.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -145,7 +146,25 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Kiểm duyệt minh chứng')),
       body: _pending.isEmpty
-          ? const Center(child: Text('Chưa có minh chứng nào đang chờ duyệt.'))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 64,
+                    color: Colors.green.shade400,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Không còn minh chứng chờ duyệt.',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('Tất cả minh chứng đã được xử lý. Làm tốt lắm!'),
+                ],
+              ),
+            )
           : Column(
               children: [
                 Container(
