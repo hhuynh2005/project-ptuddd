@@ -29,8 +29,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_01',
       title: 'Dậy sớm trước 6:00 sáng',
-      description:
-          'Chụp ảnh bàn học, đồng hồ hoặc app báo thức chứng minh bạn đã dậy và học bài trước 6h00.',
+      description: 'Chụp ảnh bàn học, đồng hồ hoặc app báo thức chứng minh bạn đã dậy và học bài trước 6h00.',
       rewardAmount: 20000,
       category: 'Kỷ luật',
       icon: 'wb_sunny',
@@ -38,8 +37,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_02',
       title: 'Gia sư dạy học cho trẻ em',
-      description:
-          'Dạy kèm 1 buổi học (toán, tiếng Việt, tiếng Anh) cho các em nhỏ có hoàn cảnh khó khăn.',
+      description: 'Dạy kèm 1 buổi học (toán, tiếng Việt, tiếng Anh) cho các em nhỏ có hoàn cảnh khó khăn.',
       rewardAmount: 50000,
       category: 'Gia sư',
       icon: 'school',
@@ -47,8 +45,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_03',
       title: 'Giải 5 bài toán tư duy / code thuật toán',
-      description:
-          'Chụp ảnh bài giải hoặc commit code trên nền tảng LeetCode/HackerRank rèn luyện tư duy.',
+      description: 'Chụp ảnh bài giải hoặc commit code trên nền tảng LeetCode/HackerRank rèn luyện tư duy.',
       rewardAmount: 30000,
       category: 'Học tập',
       icon: 'psychology',
@@ -56,8 +53,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_04',
       title: 'Chạy bộ 3km hoặc rèn luyện thể thao',
-      description:
-          'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động chạy bộ nâng cao sức khỏe.',
+      description: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động chạy bộ nâng cao sức khỏe.',
       rewardAmount: 25000,
       category: 'Sức khỏe',
       icon: 'directions_run',
@@ -68,6 +64,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   final MlKitOcrService _ocrService = MlKitOcrService();
   final ProofImageStorageService _storageService =
       const ProofImageStorageService();
+  final FundRepository _fundRepository = FundRepository();
 
   final TextEditingController _memberNameController = TextEditingController(
     text: 'Nguyễn Trung Kiên',
@@ -105,8 +102,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      final dbChallenges = await FundRepository.instance.getChallenges();
-      final dbProofs = await FundRepository.instance.getProofs();
+      final dbChallenges = await _fundRepository.getChallenges();
+      final dbProofs = await _fundRepository.getProofs();
       if (!mounted) return;
       setState(() {
         if (dbChallenges.isNotEmpty) {
@@ -163,9 +160,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       if (!mounted) return;
       setState(() => _isProcessing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể chụp hoặc lưu ảnh minh chứng: $e'),
-        ),
+        SnackBar(content: Text('Không thể chụp hoặc lưu ảnh minh chứng: $e')),
       );
     }
   }
@@ -195,7 +190,9 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     if (memberName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng nhập họ và tên thành viên trước khi nộp minh chứng.'),
+          content: Text(
+            'Vui lòng nhập họ và tên thành viên trước khi nộp minh chứng.',
+          ),
         ),
       );
       return;
@@ -210,7 +207,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       if (userNote.isNotEmpty) userNote,
     ].join(' | ');
 
-    final imagePath = _storedImage?.savedPath ??
+    final imagePath =
+        _storedImage?.savedPath ??
         'mock://proof_images/${_selectedSample.id}_${now.millisecondsSinceEpoch}.jpg';
 
     final newProof = ProofModel(
@@ -228,8 +226,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     );
 
     try {
-      await FundRepository.instance.submitProof(newProof);
-      final updatedProofs = await FundRepository.instance.getProofs();
+      await _fundRepository.submitProof(newProof);
+      final updatedProofs = await _fundRepository.getProofs();
       if (!mounted) return;
       setState(() {
         _submittedProofs = updatedProofs;
@@ -264,9 +262,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     final result = _ocrResult;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nộp minh chứng & AI OCR'),
-      ),
+      appBar: AppBar(title: const Text('Nộp minh chứng & AI OCR')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
