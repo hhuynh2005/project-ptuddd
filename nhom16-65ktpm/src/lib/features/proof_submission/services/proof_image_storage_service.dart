@@ -26,15 +26,23 @@ class StoredProofImage {
   final DateTime savedAt;
 
   /// Hiển thị dung lượng tệp dễ đọc (KB / MB).
-  String get formattedSize {
-    if (fileSizeBytes <= 0) return '0 KB';
-    final kb = fileSizeBytes / 1024;
-    if (kb < 1024) {
-      return '${kb.toStringAsFixed(1)} KB';
-    }
-    final mb = kb / 1024;
-    return '${mb.toStringAsFixed(2)} MB';
-  }
+  String get formattedSize => ProofImageStorageService.formatBytes(fileSizeBytes);
+}
+
+/// Thống kê trạng thái thư mục lưu trữ ảnh minh chứng trên bộ nhớ thiết bị.
+class ProofStorageStats {
+  const ProofStorageStats({
+    required this.directoryPath,
+    required this.imageCount,
+    required this.totalSizeBytes,
+  });
+
+  final String directoryPath;
+  final int imageCount;
+  final int totalSizeBytes;
+
+  String get formattedTotalSize =>
+      ProofImageStorageService.formatBytes(totalSizeBytes);
 }
 
 /// Dịch vụ quản lý lưu trữ tệp ảnh minh chứng cục bộ an toàn (Sprint 2).
@@ -42,6 +50,16 @@ class ProofImageStorageService {
   const ProofImageStorageService();
 
   static const String _proofFolderName = 'proof_images';
+
+  static String formatBytes(int bytes) {
+    if (bytes <= 0) return '0 KB';
+    final kb = bytes / 1024;
+    if (kb < 1024) {
+      return '${kb.toStringAsFixed(1)} KB';
+    }
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(2)} MB';
+  }
 
   /// Lấy thư mục lưu trữ ảnh minh chứng riêng của ứng dụng trên bộ nhớ thiết bị.
   Future<Directory> getProofStorageDirectory() async {
@@ -106,6 +124,39 @@ class ProofImageStorageService {
       fileSizeBytes: sizeBytes,
       savedAt: now,
     );
+  }
+
+  /// Thống kê số lượng và tổng dung lượng các tệp ảnh minh chứng đang lưu trong bộ nhớ máy.
+  Future<ProofStorageStats> getStorageStats() async {
+    if (kIsWeb) {
+      return const ProofStorageStats(
+        directoryPath: 'web://local_storage/proof_images',
+        imageCount: 0,
+        totalSizeBytes: 0,
+      );
+    }
+    try {
+      final dir = await getProofStorageDirectory();
+      var count = 0;
+      var totalBytes = 0;
+      await for (final entity in dir.list(followLinks: false)) {
+        if (entity is File) {
+          count++;
+          totalBytes += await entity.length();
+        }
+      }
+      return ProofStorageStats(
+        directoryPath: dir.path,
+        imageCount: count,
+        totalSizeBytes: totalBytes,
+      );
+    } catch (_) {
+      return const ProofStorageStats(
+        directoryPath: 'proof_images/',
+        imageCount: 0,
+        totalSizeBytes: 0,
+      );
+    }
   }
 
   /// Xóa tệp ảnh minh chứng đã lưu khỏi bộ nhớ máy (khi người dùng chọn chụp lại).

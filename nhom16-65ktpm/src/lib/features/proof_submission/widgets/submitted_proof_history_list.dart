@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../data/models/proof_model.dart';
 
 /// Widget hiển thị danh sách minh chứng vừa nộp và lưu trong bộ nhớ máy (Sprint 2).
@@ -21,27 +22,88 @@ class SubmittedProofHistoryList extends StatelessWidget {
   (String, Color) _statusBadge(ProofStatus status) {
     switch (status) {
       case ProofStatus.approved:
-        return ('Đã duyệt', Colors.green);
+        return ('Đã duyệt', AppColors.success);
       case ProofStatus.rejected:
-        return ('Từ chối', Colors.red);
+        return ('Từ chối', AppColors.danger);
       case ProofStatus.pending:
-        return ('Chờ duyệt', Colors.orange);
+        return ('Chờ duyệt', AppColors.warning);
     }
   }
 
-  Widget _buildLeadingThumbnail(ProofModel proof) {
+  void _showStoredImageDialog(BuildContext context, ProofModel proof) {
+    if (kIsWeb ||
+        proof.imagePath.isEmpty ||
+        proof.imagePath.startsWith('mock://')) {
+      return;
+    }
+    final file = File(proof.imagePath);
+    if (!file.existsSync()) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      proof.challengeTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  file,
+                  height: 260,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Đường dẫn tệp: ${proof.imagePath}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeadingThumbnail(BuildContext context, ProofModel proof) {
     if (!kIsWeb &&
         proof.imagePath.isNotEmpty &&
         !proof.imagePath.startsWith('mock://')) {
       final file = File(proof.imagePath);
       if (file.existsSync()) {
-        return ClipRRect(
+        return InkWell(
+          onTap: () => _showStoredImageDialog(context, proof),
           borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            file,
-            width: 56,
-            height: 56,
-            fit: BoxFit.cover,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              file,
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+            ),
           ),
         );
       }
@@ -51,12 +113,12 @@ class SubmittedProofHistoryList extends StatelessWidget {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(
+      child: const Icon(
         Icons.image_outlined,
-        color: Colors.deepPurple.shade400,
+        color: AppColors.primary,
       ),
     );
   }
@@ -74,7 +136,7 @@ class SubmittedProofHistoryList extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.history),
+                const Icon(Icons.history, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -95,7 +157,7 @@ class SubmittedProofHistoryList extends StatelessWidget {
                   child: Text(
                     'Chưa có minh chứng nào được lưu. Hãy chụp ảnh và nhấn Gửi minh chứng.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ),
               )
@@ -111,7 +173,7 @@ class SubmittedProofHistoryList extends StatelessWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLeadingThumbnail(item),
+                      _buildLeadingThumbnail(context, item),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -158,7 +220,7 @@ class SubmittedProofHistoryList extends StatelessWidget {
                               '${item.detectedTime != null ? ' • Giờ OCR: ${item.detectedTime}' : ''}',
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Colors.black54,
+                                color: Colors.grey,
                               ),
                             ),
                             if (item.note.isNotEmpty)
