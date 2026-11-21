@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../analytics/data/mock_fund_data.dart';
+import '../../data/models/proof_model.dart';
+import '../../data/repositories/fund_repository.dart';
 import 'widgets/proof_card.dart';
 
 // Màn hình Kiểm duyệt minh chứng (Admin).
-// Giai đoạn 2: danh sách minh chứng chờ duyệt bằng dữ liệu mẫu,
-// xếp cũ nhất trước để duyệt theo thứ tự nộp.
-// Commit 5: Duyệt/Từ chối ở mức mock — gỡ khỏi danh sách chờ
-// trong bộ nhớ và báo SnackBar; lưu thật là giai đoạn sau.
-// Commit 6: header tóm tắt số minh chứng + tổng tiền đang chờ.
-// Commit 7: hoàn thiện trạng thái rỗng khi xử lý hết danh sách.
+// Giai đoạn 2: giao diện + tương tác bằng dữ liệu mẫu (đã merge PR #14).
+// Giai đoạn 3 – C1: nối dữ liệu thật — danh sách chờ duyệt đọc từ
+// FundRepository.getPendingProofs() (SQLite) thay cho dữ liệu mẫu.
+// Nút Duyệt/Từ chối nối xử lý thật ở C2 và C4; ở C1 hộp thoại chi
+// tiết tạm chỉ có nút Đóng.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -19,13 +19,33 @@ class AdminReviewScreen extends StatefulWidget {
 }
 
 class _AdminReviewScreenState extends State<AdminReviewScreen> {
-  late List<MockProof> _pending;
+  final FundRepository _repo = FundRepository.instance;
+
+  List<ProofModel> _pending = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _pending = List.of(mockProofs)
-      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    _loadPending();
+  }
+
+  Future<void> _loadPending() async {
+    try {
+      final proofs = await _repo.getPendingProofs();
+      proofs.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+      if (!mounted) return;
+      setState(() {
+        _pending = proofs;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không tải được danh sách minh chứng: $e')),
+      );
+    }
   }
 
   String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
@@ -34,66 +54,13 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
       '${NumberFormat.decimalPattern('vi_VN').format(v.round())} đ';
 
   double get _pendingTotal =>
-      _pending.fold(0, (sum, p) => sum + p.sponsorAmount);
+      _pending.fold(0, (sum, p) => sum + p.rewardAmount);
 
-  void _approve(MockProof proof) {
-    setState(() => _pending.remove(proof));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã duyệt (mock): +${_money(proof.sponsorAmount)} vào quỹ',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _reject(MockProof proof) async {
-    final reasonController = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Từ chối minh chứng'),
-        content: TextField(
-          controller: reasonController,
-          decoration: const InputDecoration(
-            labelText: 'Lý do từ chối (bắt buộc)',
-            hintText: 'vd: Ảnh mờ, không đọc được giờ',
-          ),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, reasonController.text.trim()),
-            child: const Text('Xác nhận từ chối'),
-          ),
-        ],
-      ),
-    );
-    if (reason == null) return;
-    if (reason.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cần nhập lý do mới từ chối được.')),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _pending.remove(proof));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã từ chối (mock). Lý do: $reason')),
-    );
-  }
-
-  void _showDetail(MockProof proof) {
+  void _showDetail(ProofModel proof) {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(proof.challengeName),
+        title: Text(proof.challengeTitle),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,12 +75,12 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
               const SizedBox(height: 12),
               Text('Thành viên: ${proof.memberName}'),
               Text('Nộp lúc: ${_time(proof.submittedAt)}'),
-              Text('Tiền tài trợ: ${_money(proof.sponsorAmount)}'),
+              Text('Tiền tài trợ: ${_money(proof.rewardAmount)}'),
               const SizedBox(height: 8),
               Text('Ghi chú: ${proof.note}'),
               const SizedBox(height: 8),
-              Chip(label: Text('OCR gợi ý: ${proof.ocrText}')),
-              Text('Giờ OCR đọc được: ${proof.detectedTime}'),
+              Chip(label: Text('OCR gợi ý: ${proof.ocrExtractedText}')),
+              Text('Giờ OCR đọc được: ${proof.detectedTime ?? '—'}'),
             ],
           ),
         ),
@@ -121,20 +88,6 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Đóng'),
-          ),
-          OutlinedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _reject(proof);
-            },
-            child: const Text('Từ chối'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _approve(proof);
-            },
-            child: const Text('Duyệt'),
           ),
         ],
       ),
@@ -145,7 +98,9 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kiểm duyệt minh chứng')),
-      body: _pending.isEmpty
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _pending.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
