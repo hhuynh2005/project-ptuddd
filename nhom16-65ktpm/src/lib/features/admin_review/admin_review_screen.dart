@@ -12,6 +12,8 @@ import 'widgets/proof_card.dart';
 // C2: nút Duyệt gọi FundRepository.approveProof() — duyệt xong minh
 // chứng rời danh sách chờ; giao dịch thu vào quỹ do tầng dữ liệu tự
 // sinh. Nút Từ chối nối ở C4.
+// C3: SnackBar xác nhận sau khi duyệt; nếu approveProof trả về
+// false (minh chứng đã bị xử lý trước đó) thì báo và tải lại danh sách.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -50,11 +52,26 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   }
 
   Future<void> _approve(ProofModel proof) async {
-    await _repo.approveProof(proof.id);
+    final ok = await _repo.approveProof(proof.id);
     if (!mounted) return;
-    setState(() {
-      _pending.removeWhere((p) => p.id == proof.id);
-    });
+    if (ok) {
+      setState(() {
+        _pending.removeWhere((p) => p.id == proof.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã duyệt minh chứng của ${proof.memberName} — '
+            'cộng ${_money(proof.rewardAmount)} vào quỹ',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minh chứng này đã được xử lý trước đó.')),
+      );
+      _loadPending();
+    }
   }
 
   String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
