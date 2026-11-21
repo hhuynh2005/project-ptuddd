@@ -2,26 +2,79 @@ import '../datasources/database_helper.dart';
 import '../models/challenge_model.dart';
 import '../models/fund_transaction_model.dart';
 import '../models/proof_model.dart';
+import 'challenge_repository.dart';
+import 'fund_transaction_repository.dart';
+import 'proof_repository.dart';
 
-/// Repository trung gian cung cấp dữ liệu từ SQLite Database cho toàn bộ ứng dụng
-class FundRepository {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+/// Triển khai SQLite cho ChallengeRepository
+class ChallengeRepositoryImpl implements IChallengeRepository {
+  final DatabaseHelper _db;
 
-  // ==============================
-  // SỔ QUỸ THU - CHI
-  // ==============================
-  Future<List<FundTransactionModel>> getTransactions() {
-    return _db.getAllTransactions();
-  }
+  ChallengeRepositoryImpl({DatabaseHelper? db})
+      : _db = db ?? DatabaseHelper.instance;
 
-  Future<int> recordTransaction(FundTransactionModel tx) {
-    return _db.insertTransaction(tx);
-  }
+  @override
+  Future<List<ChallengeModel>> getChallenges() => _db.getAllChallenges();
 
+  @override
+  Future<ChallengeModel?> getChallengeById(String id) =>
+      _db.getChallengeById(id);
+
+  @override
+  Future<int> addChallenge(ChallengeModel challenge) =>
+      _db.insertChallenge(challenge);
+}
+
+/// Triển khai SQLite cho ProofRepository
+class ProofRepositoryImpl implements IProofRepository {
+  final DatabaseHelper _db;
+
+  ProofRepositoryImpl({DatabaseHelper? db})
+      : _db = db ?? DatabaseHelper.instance;
+
+  @override
+  Future<List<ProofModel>> getProofs() => _db.getAllProofs();
+
+  @override
+  Future<List<ProofModel>> getPendingProofs() => _db.getPendingProofs();
+
+  @override
+  Future<int> submitProof(ProofModel proof) => _db.insertProof(proof);
+
+  @override
+  Future<bool> approveProof(String proofId, {String? feedback}) =>
+      _db.approveProof(proofId, adminFeedback: feedback);
+
+  @override
+  Future<bool> rejectProof(String proofId, {required String reason}) =>
+      _db.rejectProof(proofId, reason: reason);
+}
+
+/// Triển khai SQLite cho FundTransactionRepository
+class FundTransactionRepositoryImpl implements IFundTransactionRepository {
+  final DatabaseHelper _db;
+
+  FundTransactionRepositoryImpl({DatabaseHelper? db})
+      : _db = db ?? DatabaseHelper.instance;
+
+  @override
+  Future<List<FundTransactionModel>> getTransactions() =>
+      _db.getAllTransactions();
+
+  @override
+  Future<int> recordTransaction(FundTransactionModel tx) =>
+      _db.insertTransaction(tx);
+
+  @override
   Future<double> getTotalIncome() => _db.getTotalIncome();
+
+  @override
   Future<double> getTotalExpense() => _db.getTotalExpense();
+
+  @override
   Future<double> getBalance() => _db.getBalance();
 
+  @override
   Future<List<FundTransactionModel>> filterTransactions({
     TransactionType? type,
     String? category,
@@ -35,27 +88,100 @@ class FundRepository {
       toDate: toDate,
     );
   }
+}
+
+/// Facade Repository trung gian tương thích ngược 100% với toàn bộ ứng dụng
+class FundRepository
+    implements
+        IChallengeRepository,
+        IProofRepository,
+        IFundTransactionRepository {
+  FundRepository._internal()
+      : challengeRepo = ChallengeRepositoryImpl(),
+        proofRepo = ProofRepositoryImpl(),
+        transactionRepo = FundTransactionRepositoryImpl();
+
+  FundRepository({
+    IChallengeRepository? challengeRepository,
+    IProofRepository? proofRepository,
+    IFundTransactionRepository? transactionRepository,
+  })  : challengeRepo = challengeRepository ?? ChallengeRepositoryImpl(),
+        proofRepo = proofRepository ?? ProofRepositoryImpl(),
+        transactionRepo =
+            transactionRepository ?? FundTransactionRepositoryImpl();
+
+  static final FundRepository instance = FundRepository._internal();
+
+  final IChallengeRepository challengeRepo;
+  final IProofRepository proofRepo;
+  final IFundTransactionRepository transactionRepo;
 
   // ==============================
   // THỬ THÁCH VIỆC TỐT
   // ==============================
-  Future<List<ChallengeModel>> getChallenges() => _db.getAllChallenges();
-  Future<ChallengeModel?> getChallengeById(String id) => _db.getChallengeById(id);
-  Future<int> addChallenge(ChallengeModel challenge) => _db.insertChallenge(challenge);
+  @override
+  Future<List<ChallengeModel>> getChallenges() => challengeRepo.getChallenges();
+
+  @override
+  Future<ChallengeModel?> getChallengeById(String id) =>
+      challengeRepo.getChallengeById(id);
+
+  @override
+  Future<int> addChallenge(ChallengeModel challenge) =>
+      challengeRepo.addChallenge(challenge);
 
   // ==============================
   // MINH CHỨNG & PHÊ DUYỆT
   // ==============================
-  Future<List<ProofModel>> getProofs() => _db.getAllProofs();
-  Future<List<ProofModel>> getPendingProofs() => _db.getPendingProofs();
-  Future<int> submitProof(ProofModel proof) => _db.insertProof(proof);
+  @override
+  Future<List<ProofModel>> getProofs() => proofRepo.getProofs();
 
-  /// Duyệt minh chứng -> tự động tạo giao dịch Thu vào Quỹ
+  @override
+  Future<List<ProofModel>> getPendingProofs() => proofRepo.getPendingProofs();
+
+  @override
+  Future<int> submitProof(ProofModel proof) => proofRepo.submitProof(proof);
+
+  @override
   Future<bool> approveProof(String proofId, {String? feedback}) =>
-      _db.approveProof(proofId, adminFeedback: feedback);
+      proofRepo.approveProof(proofId, feedback: feedback);
 
-  /// Từ chối minh chứng
+  @override
   Future<bool> rejectProof(String proofId, {required String reason}) =>
-      _db.rejectProof(proofId, reason: reason);
-}
+      proofRepo.rejectProof(proofId, reason: reason);
 
+  // ==============================
+  // SỔ QUỸ THU - CHI
+  // ==============================
+  @override
+  Future<List<FundTransactionModel>> getTransactions() =>
+      transactionRepo.getTransactions();
+
+  @override
+  Future<int> recordTransaction(FundTransactionModel tx) =>
+      transactionRepo.recordTransaction(tx);
+
+  @override
+  Future<double> getTotalIncome() => transactionRepo.getTotalIncome();
+
+  @override
+  Future<double> getTotalExpense() => transactionRepo.getTotalExpense();
+
+  @override
+  Future<double> getBalance() => transactionRepo.getBalance();
+
+  @override
+  Future<List<FundTransactionModel>> filterTransactions({
+    TransactionType? type,
+    String? category,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) {
+    return transactionRepo.filterTransactions(
+      type: type,
+      category: category,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+  }
+}
