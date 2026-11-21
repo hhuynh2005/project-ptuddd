@@ -9,8 +9,9 @@ import 'widgets/proof_card.dart';
 // Giai đoạn 2: giao diện + tương tác bằng dữ liệu mẫu (đã merge PR #14).
 // Giai đoạn 3 – C1: nối dữ liệu thật — danh sách chờ duyệt đọc từ
 // FundRepository.getPendingProofs() (SQLite) thay cho dữ liệu mẫu.
-// Nút Duyệt/Từ chối nối xử lý thật ở C2 và C4; ở C1 hộp thoại chi
-// tiết tạm chỉ có nút Đóng.
+// C2: nút Duyệt gọi FundRepository.approveProof() — duyệt xong minh
+// chứng rời danh sách chờ; giao dịch thu vào quỹ do tầng dữ liệu tự
+// sinh. Nút Từ chối nối ở C4.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -46,6 +47,14 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
         SnackBar(content: Text('Không tải được danh sách minh chứng: $e')),
       );
     }
+  }
+
+  Future<void> _approve(ProofModel proof) async {
+    await _repo.approveProof(proof.id);
+    if (!mounted) return;
+    setState(() {
+      _pending.removeWhere((p) => p.id == proof.id);
+    });
   }
 
   String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
@@ -88,6 +97,13 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Đóng'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _approve(proof);
+            },
+            child: const Text('Duyệt'),
           ),
         ],
       ),
