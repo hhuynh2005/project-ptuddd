@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'features/analytics/analytics_screen.dart';
 import 'features/proof_submission/proof_submission_screen.dart';
+import 'features/admin_review/admin_review_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,9 +17,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'GoodDeeds Fund',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
+      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
       home: const MainNavigationScreen(),
     );
   }
@@ -37,6 +36,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   static const List<Widget> _screens = [
     ProofSubmissionScreen(),
     AnalyticsScreen(),
+    AdminReviewScreen(),
   ];
 
   @override
