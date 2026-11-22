@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../../features/admin_review/admin_review_screen.dart';
 import '../../features/analytics/analytics_screen.dart';
+import '../../features/chatbot/chatbot_sheet.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
 import '../constants/app_colors.dart';
@@ -125,6 +126,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
         actions: [
+          // NÚT TRỢ LÝ HỎI ĐÁP AI CHATBOT
+          IconButton(
+            tooltip: 'Trợ lý AI Hỏi Đáp GoodDeeds',
+            icon: const Icon(Icons.smart_toy_rounded),
+            color: AppColors.primary,
+            onPressed: () => ChatbotSheet.show(context),
+          ),
+
           // NÚT KIỂM DUYỆT ADMIN KÈM BADGE SỐ LƯỢNG CHỜ DUYỆT (Trần Anh Tuấn)
           Stack(
             alignment: Alignment.topRight,
