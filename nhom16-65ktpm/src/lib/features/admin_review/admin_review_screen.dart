@@ -20,6 +20,8 @@ import 'widgets/proof_card.dart';
 // nguyên từ Giai đoạn 2 (bắt buộc nhập).
 // C5: chặn thao tác trùng — _processingIds giữ id đang duyệt/từ chối,
 // bấm trùng trong lúc chờ thì bỏ qua, không gọi repository lần 2.
+// C6: rà soát cuối Giai đoạn 3 — dispose controller hộp thoại lý do,
+// kiểm chứng toàn trình duyệt/từ chối + đọc lại được lý do đã lưu.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -112,6 +114,7 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
         ],
       ),
     );
+    reasonController.dispose();
     if (reason == null || reason.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
