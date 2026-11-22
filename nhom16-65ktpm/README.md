@@ -104,15 +104,33 @@ nhom16-65ktpm/
 ├── docs/                           # Thư mục chứa báo cáo đồ án (PDF/DOCX)
 └── src/                            # Toàn bộ mã nguồn ứng dụng Flutter
     ├── lib/
-    │   ├── core/                   # Common widgets, theme, constants, helpers
+    │   ├── core/                   # Common widgets, theme Material 3, constants
+    │   ├── data/                   # Models, SQLite DatabaseHelper, Repositories
     │   ├── features/
-    │   │   ├── dashboard/          # Tổng quan quỹ & vinh danh
-    │   │   ├── challenges/         # Danh mục thử thách việc tốt
-    │   │   ├── proof_submission/   # Nộp minh chứng & AI OCR
-    │   │   ├── fund_ledger/        # Sổ quỹ thu chi từ thiện
-    │   │   ├── analytics/          # Biểu đồ báo cáo minh bạch
-    │   │   └── admin_review/       # Màn hình duyệt minh chứng
+    │   │   ├── dashboard/          # Tổng quan quỹ, tiến độ mục tiêu, podium vinh danh
+    │   │   ├── challenges/         # Danh mục & chi tiết thử thách việc tốt
+    │   │   ├── proof_submission/   # Nộp minh chứng Camera & AI OCR Google ML Kit
+    │   │   ├── fund_ledger/        # Sổ quỹ thu chi từ thiện minh bạch
+    │   │   ├── analytics/          # Biểu đồ báo cáo minh bạch (fl_chart)
+    │   │   ├── admin_review/       # Màn hình duyệt minh chứng kèm badge thông báo
+    │   │   └── chatbot/            # Trợ lý Hỏi Đáp AI Chatbot & QaAssistantService
     │   └── main.dart
     ├── pubspec.yaml
     └── ...
 ```
+
+---
+
+## 🎨 6. Hệ thống thiết kế chuẩn Material 3 (Design System)
+
+* **Phong cách:** Hiện đại, ấm áp, truyền cảm hứng và minh bạch 100%.
+* **Bảng màu chủ đạo:**
+  * **Primary (Xanh ngọc / Teal - `#0F9D8A`):** Tượng trưng cho sự tin cậy, chính trực và phát triển bền vững.
+  * **Accent (Cam ấm - `#FF8A3D`):** Tượng trưng cho lòng nhân ái, dùng cho các nút kêu gọi hành động (CTA) và nút FAB Camera nổi ở giữa.
+  * **Màu trạng thái:** Thành công (`#22C55E`), Cảnh báo (`#F59E0B`), Lỗi (`#EF4444`).
+  * **Hỗ trợ giao diện:** Light Mode (`#F7FAF9`) và Dark Mode (`#0F172A`).
+* **Trải nghiệm điều hướng trung tâm:**
+  * **Bottom Navigation Bar 5 tabs:** Trang chủ | Thử thách | **Nút FAB tròn Cam ấm ở giữa (Nộp ảnh)** | Sổ Quỹ | Báo cáo.
+  * **Kiểm duyệt Admin:** Nút quản trị trên AppBar kèm **Badge số lượng minh chứng chờ duyệt** lấy dữ liệu thời gian thực từ SQLite.
+  * **Trợ lý AI Chatbot:** Tích hợp trực tiếp trên thanh AppBar, hỗ trợ hỏi đáp thể lệ, tra cứu quỹ và hướng dẫn chụp ảnh 24/7.
+
