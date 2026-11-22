@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../analytics/data/mock_fund_data.dart';
+import '../../data/models/proof_model.dart';
+import '../../data/repositories/fund_repository.dart';
 import 'widgets/proof_card.dart';
 
 // Màn hình Kiểm duyệt minh chứng (Admin).
-// Giai đoạn 2: danh sách minh chứng chờ duyệt bằng dữ liệu mẫu,
-// xếp cũ nhất trước để duyệt theo thứ tự nộp.
-// Commit 5: Duyệt/Từ chối ở mức mock — gỡ khỏi danh sách chờ
-// trong bộ nhớ và báo SnackBar; lưu thật là giai đoạn sau.
-// Commit 6: header tóm tắt số minh chứng + tổng tiền đang chờ.
-// Commit 7: hoàn thiện trạng thái rỗng khi xử lý hết danh sách.
+// Giai đoạn 2: giao diện + tương tác bằng dữ liệu mẫu (đã merge PR #14).
+// Giai đoạn 3 – C1: nối dữ liệu thật — danh sách chờ duyệt đọc từ
+// FundRepository.getPendingProofs() (SQLite) thay cho dữ liệu mẫu.
+// C2: nút Duyệt gọi FundRepository.approveProof() — duyệt xong minh
+// chứng rời danh sách chờ; giao dịch thu vào quỹ do tầng dữ liệu tự
+// sinh.
+// C3: SnackBar xác nhận sau khi duyệt; nếu approveProof trả về
+// false (minh chứng đã bị xử lý trước đó) thì báo và tải lại danh sách.
+// C4: nút Từ chối gọi FundRepository.rejectProof(id, reason:) — lý do
+// lưu vào adminFeedback (ProofModel không có trường rejectReason),
+// trạng thái chuyển rejected; không cộng quỹ. Hộp thoại lý do giữ
+// nguyên từ Giai đoạn 2 (bắt buộc nhập).
+// C5: chặn thao tác trùng — _processingIds giữ id đang duyệt/từ chối,
+// bấm trùng trong lúc chờ thì bỏ qua, không gọi repository lần 2.
+// C6: rà soát cuối Giai đoạn 3 — dispose controller hộp thoại lý do,
+// kiểm chứng toàn trình duyệt/từ chối + đọc lại được lý do đã lưu.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -19,35 +30,65 @@ class AdminReviewScreen extends StatefulWidget {
 }
 
 class _AdminReviewScreenState extends State<AdminReviewScreen> {
-  late List<MockProof> _pending;
+  final FundRepository _repo = FundRepository.instance;
+
+  List<ProofModel> _pending = [];
+  bool _loading = true;
+
+  // Id các minh chứng đang chờ approve/reject trả về — chặn bấm trùng.
+  final Set<String> _processingIds = {};
 
   @override
   void initState() {
     super.initState();
-    _pending = List.of(mockProofs)
-      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    _loadPending();
   }
 
-  String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
+  Future<void> _loadPending() async {
+    try {
+      final proofs = await _repo.getPendingProofs();
+      proofs.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+      if (!mounted) return;
+      setState(() {
+        _pending = proofs;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không tải được danh sách minh chứng: $e')),
+      );
+    }
+  }
 
-  String _money(double v) =>
-      '${NumberFormat.decimalPattern('vi_VN').format(v.round())} đ';
-
-  double get _pendingTotal =>
-      _pending.fold(0, (sum, p) => sum + p.sponsorAmount);
-
-  void _approve(MockProof proof) {
-    setState(() => _pending.remove(proof));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã duyệt (mock): +${_money(proof.sponsorAmount)} vào quỹ',
+  Future<void> _approve(ProofModel proof) async {
+    if (_processingIds.contains(proof.id)) return;
+    _processingIds.add(proof.id);
+    final ok = await _repo.approveProof(proof.id);
+    _processingIds.remove(proof.id);
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _pending.removeWhere((p) => p.id == proof.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã duyệt minh chứng của ${proof.memberName} — '
+            'cộng ${_money(proof.rewardAmount)} vào quỹ',
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minh chứng này đã được xử lý trước đó.')),
+      );
+      _loadPending();
+    }
   }
 
-  Future<void> _reject(MockProof proof) async {
+  Future<void> _reject(ProofModel proof) async {
     final reasonController = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
@@ -73,27 +114,51 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
         ],
       ),
     );
-    if (reason == null) return;
-    if (reason.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cần nhập lý do mới từ chối được.')),
-        );
-      }
+    reasonController.dispose();
+    if (reason == null || reason.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cần nhập lý do mới từ chối được.')),
+      );
       return;
     }
+    if (_processingIds.contains(proof.id)) return;
+    _processingIds.add(proof.id);
+    final ok = await _repo.rejectProof(proof.id, reason: reason);
+    _processingIds.remove(proof.id);
     if (!mounted) return;
-    setState(() => _pending.remove(proof));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã từ chối (mock). Lý do: $reason')),
-    );
+    if (ok) {
+      setState(() {
+        _pending.removeWhere((p) => p.id == proof.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã từ chối minh chứng của ${proof.memberName} — lý do: $reason',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minh chứng này đã được xử lý trước đó.')),
+      );
+      _loadPending();
+    }
   }
 
-  void _showDetail(MockProof proof) {
+  String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
+
+  String _money(double v) =>
+      '${NumberFormat.decimalPattern('vi_VN').format(v.round())} đ';
+
+  double get _pendingTotal =>
+      _pending.fold(0, (sum, p) => sum + p.rewardAmount);
+
+  void _showDetail(ProofModel proof) {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(proof.challengeName),
+        title: Text(proof.challengeTitle),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,12 +173,12 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
               const SizedBox(height: 12),
               Text('Thành viên: ${proof.memberName}'),
               Text('Nộp lúc: ${_time(proof.submittedAt)}'),
-              Text('Tiền tài trợ: ${_money(proof.sponsorAmount)}'),
+              Text('Tiền tài trợ: ${_money(proof.rewardAmount)}'),
               const SizedBox(height: 8),
               Text('Ghi chú: ${proof.note}'),
               const SizedBox(height: 8),
-              Chip(label: Text('OCR gợi ý: ${proof.ocrText}')),
-              Text('Giờ OCR đọc được: ${proof.detectedTime}'),
+              Chip(label: Text('OCR gợi ý: ${proof.ocrExtractedText}')),
+              Text('Giờ OCR đọc được: ${proof.detectedTime ?? '—'}'),
             ],
           ),
         ),
@@ -122,7 +187,7 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Đóng'),
           ),
-          OutlinedButton(
+          TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _reject(proof);
@@ -145,7 +210,9 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kiểm duyệt minh chứng')),
-      body: _pending.isEmpty
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _pending.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
