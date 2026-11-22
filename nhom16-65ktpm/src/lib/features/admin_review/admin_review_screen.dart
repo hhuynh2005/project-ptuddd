@@ -11,9 +11,13 @@ import 'widgets/proof_card.dart';
 // FundRepository.getPendingProofs() (SQLite) thay cho dữ liệu mẫu.
 // C2: nút Duyệt gọi FundRepository.approveProof() — duyệt xong minh
 // chứng rời danh sách chờ; giao dịch thu vào quỹ do tầng dữ liệu tự
-// sinh. Nút Từ chối nối ở C4.
+// sinh.
 // C3: SnackBar xác nhận sau khi duyệt; nếu approveProof trả về
 // false (minh chứng đã bị xử lý trước đó) thì báo và tải lại danh sách.
+// C4: nút Từ chối gọi FundRepository.rejectProof(id, reason:) — lý do
+// lưu vào adminFeedback (ProofModel không có trường rejectReason),
+// trạng thái chuyển rejected; không cộng quỹ. Hộp thoại lý do giữ
+// nguyên từ Giai đoạn 2 (bắt buộc nhập).
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -74,6 +78,60 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
     }
   }
 
+  Future<void> _reject(ProofModel proof) async {
+    final reasonController = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Từ chối minh chứng'),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            labelText: 'Lý do từ chối (bắt buộc)',
+            hintText: 'vd: Ảnh mờ, không đọc được giờ',
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, reasonController.text.trim()),
+            child: const Text('Xác nhận từ chối'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || reason.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cần nhập lý do mới từ chối được.')),
+      );
+      return;
+    }
+    final ok = await _repo.rejectProof(proof.id, reason: reason);
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _pending.removeWhere((p) => p.id == proof.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã từ chối minh chứng của ${proof.memberName} — lý do: $reason',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minh chứng này đã được xử lý trước đó.')),
+      );
+      _loadPending();
+    }
+  }
+
   String _time(DateTime d) => DateFormat('dd/MM HH:mm').format(d);
 
   String _money(double v) =>
@@ -114,6 +172,13 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Đóng'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _reject(proof);
+            },
+            child: const Text('Từ chối'),
           ),
           FilledButton(
             onPressed: () {
