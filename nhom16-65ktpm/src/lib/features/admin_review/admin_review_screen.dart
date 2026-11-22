@@ -18,6 +18,8 @@ import 'widgets/proof_card.dart';
 // lưu vào adminFeedback (ProofModel không có trường rejectReason),
 // trạng thái chuyển rejected; không cộng quỹ. Hộp thoại lý do giữ
 // nguyên từ Giai đoạn 2 (bắt buộc nhập).
+// C5: chặn thao tác trùng — _processingIds giữ id đang duyệt/từ chối,
+// bấm trùng trong lúc chờ thì bỏ qua, không gọi repository lần 2.
 class AdminReviewScreen extends StatefulWidget {
   const AdminReviewScreen({super.key});
 
@@ -30,6 +32,9 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
 
   List<ProofModel> _pending = [];
   bool _loading = true;
+
+  // Id các minh chứng đang chờ approve/reject trả về — chặn bấm trùng.
+  final Set<String> _processingIds = {};
 
   @override
   void initState() {
@@ -56,7 +61,10 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   }
 
   Future<void> _approve(ProofModel proof) async {
+    if (_processingIds.contains(proof.id)) return;
+    _processingIds.add(proof.id);
     final ok = await _repo.approveProof(proof.id);
+    _processingIds.remove(proof.id);
     if (!mounted) return;
     if (ok) {
       setState(() {
@@ -111,7 +119,10 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
       );
       return;
     }
+    if (_processingIds.contains(proof.id)) return;
+    _processingIds.add(proof.id);
     final ok = await _repo.rejectProof(proof.id, reason: reason);
+    _processingIds.remove(proof.id);
     if (!mounted) return;
     if (ok) {
       setState(() {
