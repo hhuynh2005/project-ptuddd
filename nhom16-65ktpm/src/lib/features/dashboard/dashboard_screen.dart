@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_strings.dart';
 import '../../data/repositories/fund_repository.dart';
 
-/// Màn hình Dashboard / Trang chủ GoodDeeds Fund
-/// Phụ trách: Nguyễn Văn Huỳnh (Team Lead)
+/// Màn hình Dashboard / Trang chủ GoodDeeds Fund chuẩn Senior Product Designer
+/// Phong cách: Material 3, Tone Teal & Cam ấm, bo góc 20-24px, đổ bóng mềm
 class DashboardScreen extends StatefulWidget {
   final Function(int index)? onNavigateTab;
 
@@ -29,9 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _totalIncome = 0;
   double _totalExpense = 0;
   int _proofCount = 0;
-  int _challengeCount = 0;
 
-  // Mục tiêu chiến dịch thiện nguyện mùa 1
   static const double _targetFund = 100000000; // 100 triệu VNĐ
 
   @override
@@ -47,7 +44,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final income = await _fundRepo.getTotalIncome();
       final expense = await _fundRepo.getTotalExpense();
       final proofs = await _fundRepo.getProofs();
-      final challenges = await _fundRepo.getChallenges();
 
       if (mounted) {
         setState(() {
@@ -55,19 +51,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _totalIncome = income;
           _totalExpense = expense;
           _proofCount = proofs.length;
-          _challengeCount = challenges.isNotEmpty ? challenges.length : 4;
           _isLoading = false;
         });
       }
     } catch (_) {
-      // Dữ liệu dự phòng nếu DB chưa khởi tạo
       if (mounted) {
         setState(() {
           _balance = 2000000;
           _totalIncome = 2000000;
           _totalExpense = 0;
-          _proofCount = 3;
-          _challengeCount = 4;
+          _proofCount = 4;
           _isLoading = false;
         });
       }
@@ -82,52 +75,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final percent = (progress * 100).toStringAsFixed(1);
 
     return RefreshIndicator(
+      color: AppColors.primary,
       onRefresh: _loadDashboardData,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          // 1. BANNER CHÀO MỪNG & TỔNG SỐ DƯ QUỸ
-          _buildFundOverviewCard(isDark),
+          // 1. HEADER CHÀO HỎI CÁ NHÂN HÓA
+          _buildUserWelcomeHeader(theme, isDark),
           const SizedBox(height: 16),
 
-          // 2. TIẾN ĐỘ MỤC TIÊU CHIẾN DỊCH (GOAL PROGRESS)
-          _buildGoalProgressCard(theme, progress, percent),
+          // 2. THẺ TỔNG QUỸ GRADIENT TEAL
+          _buildFundSummaryCard(isDark),
           const SizedBox(height: 16),
 
-          // 3. THỐNG KÊ NHANH (QUICK STATS GRID)
-          _buildQuickStats(theme),
-          const SizedBox(height: 16),
+          // 3. TIẾN ĐỘ MỤC TIÊU CHIẾN DỊCH
+          _buildGoalProgressBar(theme, progress, percent),
+          const SizedBox(height: 18),
 
-          // 4. PHÍM TẮT THAO TÁC NHANH (QUICK ACTIONS)
-          _buildQuickActions(theme),
-          const SizedBox(height: 20),
+          // 4. LƯỚI 3 Ô THỐNG KÊ NHANH
+          _buildQuickStatTriplets(theme),
+          const SizedBox(height: 22),
 
-          // 5. BẢNG VINH DANH THÀNH VIÊN TÍCH CỰC (LEADERBOARD)
-          _buildLeaderboard(theme),
+          // 5. CAROUSEL THỬ THÁCH VIỆC TỐT NỔI BẬT
+          _buildFeaturedChallengesHeader(theme),
+          const SizedBox(height: 12),
+          _buildFeaturedChallengesCarousel(theme),
           const SizedBox(height: 24),
+
+          // 6. BẢNG VINH DANH TOP PODIUM
+          _buildLeaderboardPodium(theme),
+          const SizedBox(height: 24),
+
+          // 7. HOẠT ĐỘNG GẦN ĐÂY (RECENT TIMELINE)
+          _buildRecentActivityTimeline(theme),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  /// Card tổng quan số dư quỹ và dòng tiền
-  Widget _buildFundOverviewCard(bool isDark) {
+  /// 1. Header chào hỏi cá nhân hóa
+  Widget _buildUserWelcomeHeader(ThemeData theme, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: AppColors.tealGradient,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Text(
+              'H',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Xin chào, Huỳnh 👋',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Admin',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Cùng lan tỏa những điều tử tế hôm nay!',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 2. Thẻ Tổng Quỹ Lớn Gradient Teal
+  Widget _buildFundSummaryCard(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E3A8A), const Color(0xFF0F172A)]
-              : [AppColors.primary, const Color(0xFF1E40AF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+        gradient: AppColors.tealGradient,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: AppColors.primary.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -140,14 +216,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.volunteer_activism, color: Colors.white, size: 22),
-                  SizedBox(width: 8),
+                  Icon(Icons.shield_outlined, color: Colors.white70, size: 18),
+                  SizedBox(width: 6),
                   Text(
-                    'Số dư Quỹ Hiện Tại',
+                    'TỔNG QUỸ THỰC TẾ',
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                      letterSpacing: 1.1,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -157,15 +234,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Mùa 1 - 2026',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.verified, color: Colors.white, size: 13),
+                    SizedBox(width: 4),
+                    Text(
+                      'Minh bạch 100%',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -187,86 +270,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _currencyFormat.format(_balance),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 32,
+                    fontSize: 34,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
                   ),
                 ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           const Divider(color: Colors.white24, height: 1),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_downward_rounded,
-                        color: Colors.greenAccent,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Tổng Thu',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
-                        ),
-                        Text(
-                          _currencyFormat.format(_totalIncome),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: _buildFlowBadge(
+                  icon: Icons.arrow_downward_rounded,
+                  color: Colors.greenAccent,
+                  label: 'Tổng thu',
+                  amount: _currencyFormat.format(_totalIncome),
                 ),
               ),
+              Container(height: 28, width: 1, color: Colors.white24),
               Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.orangeAccent.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_upward_rounded,
-                        color: Colors.orangeAccent,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Đã Giải Ngân',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
-                        ),
-                        Text(
-                          _currencyFormat.format(_totalExpense),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: _buildFlowBadge(
+                  icon: Icons.volunteer_activism_rounded,
+                  color: AppColors.accent,
+                  label: 'Đã giải ngân',
+                  amount: _currencyFormat.format(_totalExpense),
                 ),
               ),
             ],
@@ -276,12 +304,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Card tiến độ mục tiêu chiến dịch thiện nguyện
-  Widget _buildGoalProgressCard(
+  Widget _buildFlowBadge({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String amount,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 14),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+              Text(
+                amount,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 3. Tiến độ mục tiêu chiến dịch
+  Widget _buildGoalProgressBar(
       ThemeData theme, double progress, String percent) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -296,16 +363,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: AppColors.primary, size: 20),
                     SizedBox(width: 8),
                     Text(
-                      'Tiến độ Mục tiêu Chiến dịch',
+                      'Tiến độ Mục tiêu Mùa 1',
                       style:
-                          TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 Text(
                   '$percent%',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
                     color: AppColors.primary,
                   ),
@@ -328,7 +395,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Đạt: ${_currencyFormat.format(_balance)}',
+                  'Đã đạt: ${_currencyFormat.format(_balance)}',
                   style: TextStyle(
                     fontSize: 12,
                     color: theme.colorScheme.onSurfaceVariant,
@@ -338,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   'Mục tiêu: ${_currencyFormat.format(_targetFund)}',
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -350,44 +417,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Lưới thống kê nhanh các chỉ số hoạt động
-  Widget _buildQuickStats(ThemeData theme) {
+  /// 4. Lưới 3 ô thống kê nhanh
+  Widget _buildQuickStatTriplets(ThemeData theme) {
     return Row(
       children: [
         Expanded(
-          child: _buildStatItem(
+          child: _buildStatTile(
             theme,
             icon: Icons.task_alt_rounded,
-            color: Colors.blue,
-            title: 'Thử thách',
-            value: '$_challengeCount mục',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatItem(
-            theme,
-            icon: Icons.verified_rounded,
-            color: Colors.green,
-            title: 'Minh chứng',
+            color: AppColors.primary,
+            title: 'Việc tốt',
             value: '$_proofCount lượt',
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
-          child: _buildStatItem(
+          child: _buildStatTile(
             theme,
-            icon: Icons.groups_rounded,
-            color: Colors.purple,
+            icon: Icons.people_alt_rounded,
+            color: Colors.blueAccent,
             title: 'Thành viên',
-            value: '4 người',
+            value: '4 sinh viên',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildStatTile(
+            theme,
+            icon: Icons.favorite_rounded,
+            color: AppColors.accent,
+            title: 'Giải ngân',
+            value: '1 trường',
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatItem(
+  Widget _buildStatTile(
     ThemeData theme, {
     required IconData icon,
     required Color color,
@@ -395,28 +462,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        color: theme.cardTheme.color ?? theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 2),
           Text(
@@ -431,81 +498,172 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Cụm phím tắt điều hướng nhanh
-  Widget _buildQuickActions(ThemeData theme) {
+  /// 5. Carousel thử thách việc tốt nổi bật
+  Widget _buildFeaturedChallengesHeader(ThemeData theme) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: () => widget.onNavigateTab?.call(2), // Tab Nộp minh chứng
-            icon: const Icon(Icons.camera_alt_rounded, size: 18),
-            label: const Text('Nộp minh chứng'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+        const Row(
+          children: [
+            Icon(Icons.stars_rounded, color: AppColors.accent, size: 20),
+            SizedBox(width: 6),
+            Text(
+              'Thử thách nổi bật',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => widget.onNavigateTab?.call(3), // Tab Sổ quỹ
-            icon: const Icon(Icons.account_balance_wallet_rounded, size: 18),
-            label: const Text('Xem Sổ Quỹ'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+        TextButton(
+          onPressed: () => widget.onNavigateTab?.call(1),
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            foregroundColor: AppColors.primary,
           ),
+          child: const Text('Xem tất cả >', style: TextStyle(fontSize: 12)),
         ),
       ],
     );
   }
 
-  /// Bảng vinh danh Leaderboard 4 thành viên
-  Widget _buildLeaderboard(ThemeData theme) {
+  Widget _buildFeaturedChallengesCarousel(ThemeData theme) {
+    final challenges = [
+      {
+        'title': 'Dậy sớm trước 6:00 sáng',
+        'reward': '+20.000 đ',
+        'category': 'Kỷ luật',
+        'icon': Icons.alarm_rounded,
+        'color': Colors.amber.shade700,
+      },
+      {
+        'title': 'Gia sư dạy học cho trẻ em',
+        'reward': '+50.000 đ',
+        'category': 'Cộng đồng',
+        'icon': Icons.school_rounded,
+        'color': AppColors.primary,
+      },
+      {
+        'title': 'Giải 5 bài toán code tư duy',
+        'reward': '+30.000 đ',
+        'category': 'Học tập',
+        'icon': Icons.psychology_rounded,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'Chạy bộ 3km rèn sức khỏe',
+        'reward': '+25.000 đ',
+        'category': 'Thể thao',
+        'icon': Icons.directions_run_rounded,
+        'color': Colors.blue,
+      },
+    ];
+
+    return SizedBox(
+      height: 126,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: challenges.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final c = challenges[index];
+          final color = c['color'] as Color;
+          return Container(
+            width: 200,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.cardTheme.color ?? theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(c['icon'] as IconData, color: color, size: 20),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentLight,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        c['reward'] as String,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  c['title'] as String,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 6. Bảng vinh danh Top 4 Podium
+  Widget _buildLeaderboardPodium(ThemeData theme) {
     final members = [
       {
         'rank': 1,
         'name': 'Nguyễn Văn Huỳnh',
-        'role': 'Nhóm trưởng (2351170599)',
-        'amount': 720000.0,
-        'count': 15,
+        'role': 'Trưởng nhóm',
+        'amount': '+720.000 đ',
+        'count': '15 việc tốt',
         'badge': '🏆',
       },
       {
         'rank': 2,
         'name': 'Lê Anh Tuấn',
-        'role': 'Thành viên (2151060296)',
-        'amount': 540000.0,
-        'count': 12,
+        'role': 'Database & Sổ Quỹ',
+        'amount': '+540.000 đ',
+        'count': '12 việc tốt',
         'badge': '🥈',
       },
       {
         'rank': 3,
         'name': 'Nguyễn Trung Kiên',
-        'role': 'Thành viên (2251172394)',
-        'amount': 460000.0,
-        'count': 10,
+        'role': 'Camera & AI OCR',
+        'amount': '+460.000 đ',
+        'count': '10 việc tốt',
         'badge': '🥉',
       },
       {
         'rank': 4,
         'name': 'Trần Anh Tuấn',
-        'role': 'Thành viên (2351170629)',
-        'amount': 380000.0,
-        'count': 8,
+        'role': 'Biểu đồ & Admin Review',
+        'amount': '+380.000 đ',
+        'count': '8 việc tốt',
         'badge': '⭐',
       },
     ];
 
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -522,13 +680,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Text(
                       'Bảng Vinh Danh Việc Tốt',
                       style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 Text(
                   'Top Nhóm 16',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
                 ),
               ],
             ),
@@ -544,7 +702,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       m['badge'] as String,
-                      style: const TextStyle(fontSize: 20),
+                      style: const TextStyle(fontSize: 18),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -554,7 +712,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Text(
                             m['name'] as String,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -572,7 +730,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '+${_currencyFormat.format(m['amount'])}',
+                          m['amount'] as String,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -580,13 +738,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         Text(
-                          '${m['count']} việc tốt',
+                          m['count'] as String,
                           style: TextStyle(
                             fontSize: 11,
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 7. Hoạt động gần đây (Timeline)
+  Widget _buildRecentActivityTimeline(ThemeData theme) {
+    final activities = [
+      {
+        'title': 'Dậy sớm học bài thành công',
+        'member': 'Nguyễn Văn Huỳnh',
+        'time': '5:45 hôm nay',
+        'amount': '+20.000 đ',
+        'icon': Icons.alarm_on_rounded,
+        'color': AppColors.primary,
+      },
+      {
+        'title': 'Dạy kèm môn Toán cho em nhỏ',
+        'member': 'Lê Anh Tuấn',
+        'time': 'Hôm qua',
+        'amount': '+50.000 đ',
+        'icon': Icons.school_rounded,
+        'color': Colors.blueAccent,
+      },
+      {
+        'title': 'Tài trợ mở quỹ thiện nguyện',
+        'member': 'Cựu sinh viên KTPM K60',
+        'time': '3 ngày trước',
+        'amount': '+2.000.000 đ',
+        'icon': Icons.volunteer_activism_rounded,
+        'color': AppColors.accent,
+      },
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.history_rounded,
+                    color: AppColors.primary, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Hoạt động việc tốt mới nhất',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: activities.length,
+              separatorBuilder: (_, __) => const Divider(height: 16),
+              itemBuilder: (context, index) {
+                final a = activities[index];
+                final color = a['color'] as Color;
+                return Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(a['icon'] as IconData, color: color, size: 16),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            a['title'] as String,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${a['member']} • ${a['time']}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      a['amount'] as String,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
                     ),
                   ],
                 );
