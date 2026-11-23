@@ -3,6 +3,25 @@ import 'package:flutter/material.dart';
 
 import '../analytics_service.dart';
 
+/// Chọn khoảng tick "tròn" cho trục tung theo độ lớn của giá trị lớn nhất,
+/// đồng thời làm tròn maxY lên bội của khoảng tick — để các nhãn trục
+/// cách đều nhau và không bị đè (lỗi lộ ra khi số liệu thật lên hàng triệu).
+(double, double) _axisScale(double rawMax) {
+  final max = rawMax <= 0 ? 100000.0 : rawMax;
+  final interval = max > 1000000
+      ? 500000.0
+      : max > 200000
+      ? 100000.0
+      : max > 50000
+      ? 20000.0
+      : max > 10000
+      ? 5000.0
+      : 1000.0;
+  var maxY = (max / interval).ceil() * interval;
+  if (maxY <= max) maxY += interval;
+  return (interval, maxY);
+}
+
 /// Biểu đồ đường: biến động số dư quỹ 7 ngày gần nhất.
 class FundLineChart extends StatelessWidget {
   const FundLineChart({super.key, required this.points});
@@ -21,15 +40,15 @@ class FundLineChart extends StatelessWidget {
       for (var i = 0; i < points.length; i++)
         FlSpot(i.toDouble(), points[i].balance),
     ];
-    final maxY =
-        spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) * 1.2 + 10000;
+    final maxBalance = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    final (interval, maxY) = _axisScale(maxBalance);
     return SizedBox(
       height: 220,
       child: LineChart(
         LineChartData(
           minY: 0,
           maxY: maxY,
-          gridData: const FlGridData(show: true),
+          gridData: FlGridData(show: true, horizontalInterval: interval),
           borderData: FlBorderData(show: true),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(
@@ -41,6 +60,7 @@ class FundLineChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
+                interval: interval,
                 reservedSize: 48,
                 getTitlesWidget: (value, meta) => Text(
                   '${(value / 1000).round()}k',

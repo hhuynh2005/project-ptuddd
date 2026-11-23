@@ -10,9 +10,9 @@ import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C1: 3 thẻ Tổng thu / Tổng chi / Số dư + tiến độ mục tiêu
-// tính từ Sổ Quỹ thật (FundRepository.getTransactions); 3 biểu đồ vẫn
-// dùng dữ liệu mẫu (chuyển sang dữ liệu thật ở C2/C3).
+// Giai đoạn 4 - C2: 3 thẻ + tiến độ mục tiêu + biểu đồ đường/cột đã dùng
+// dữ liệu thật (FundRepository.getTransactions); biểu đồ tròn vẫn dùng
+// dữ liệu mẫu (chuyển sang dữ liệu thật ở C3).
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -123,14 +123,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              FundLineChart(points: service.balanceByDay(mockTxs)),
+              FundLineChart(points: service.balanceByDay(txs)),
               const SizedBox(height: 24),
               const Text(
                 'Thu / chi theo tháng',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              CashflowBarChart(points: service.incomeExpenseByMonth(mockTxs)),
+              CashflowBarChart(points: service.incomeExpenseByMonth(txs)),
               const SizedBox(height: 8),
               const Row(
                 children: [
