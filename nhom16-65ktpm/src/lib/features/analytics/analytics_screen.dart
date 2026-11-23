@@ -4,15 +4,14 @@ import 'package:intl/intl.dart';
 import '../../data/models/fund_transaction_model.dart';
 import '../../data/repositories/fund_repository.dart';
 import 'analytics_service.dart';
-import 'data/mock_fund_data.dart';
 import 'widgets/cashflow_bar_chart.dart';
 import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C2: 3 thẻ + tiến độ mục tiêu + biểu đồ đường/cột đã dùng
-// dữ liệu thật (FundRepository.getTransactions); biểu đồ tròn vẫn dùng
-// dữ liệu mẫu (chuyển sang dữ liệu thật ở C3).
+// Giai đoạn 4 - C3: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
+// đã dùng dữ liệu thật từ FundRepository.getTransactions — không còn
+// dữ liệu mẫu trong màn hình này.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -84,7 +83,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           final expense = service.totalExpense(txs);
           final balance = service.balance(txs);
           final goalProgress = (balance / _fundGoal).clamp(0.0, 1.0);
-          final mockTxs = mockTransactions;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -142,13 +140,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Đóng góp theo loại thử thách',
+                'Đóng góp theo danh mục',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ChallengePieChart(
-                shares: service.contributionByChallenge(mockTxs),
-              ),
+              ChallengePieChart(shares: service.contributionByChallenge(txs)),
             ],
           );
         },

@@ -1,11 +1,9 @@
 import '../../data/models/fund_transaction_model.dart';
-import 'data/mock_fund_data.dart';
 
 // Logic thuần, KHÔNG tính toán trong widget.
-// Giai đoạn 4 - C2: 3 hàm tổng + 2 hàm biểu đồ balanceByDay/
-// incomeExpenseByMonth đã chuyển sang List<FundTransactionModel> thật.
-// Hàm contributionByChallenge vẫn nhận List<MockFundTx> — chuyển sang
-// dữ liệu thật ở C3.
+// Giai đoạn 4 - C3: toàn bộ hàm đã chuyển sang List<FundTransactionModel>
+// thật (3 hàm tổng ở C1, biểu đồ đường/cột ở C2, biểu đồ tròn ở C3).
+// Service không còn dùng dữ liệu mẫu.
 // Lưu ý trường của model thật: ngày là createdAt, loại là category
 // (KHÔNG có trường date/challenge như comment cũ từng ghi).
 
@@ -83,12 +81,12 @@ class AnalyticsService {
     return points;
   }
 
-  /// Tỷ trọng đóng góp theo từng loại thử thách (chỉ tính khoản thu).
-  List<ChallengeShare> contributionByChallenge(List<MockFundTx> txs) {
+  /// Tỷ trọng đóng góp theo danh mục (category của giao dịch, chỉ tính khoản thu).
+  List<ChallengeShare> contributionByChallenge(List<FundTransactionModel> txs) {
     final map = <String, double>{};
     for (final t in txs) {
-      if (!t.isIncome || t.challenge.isEmpty) continue;
-      map[t.challenge] = (map[t.challenge] ?? 0) + t.amount;
+      if (!t.isIncome || t.category.isEmpty) continue;
+      map[t.category] = (map[t.category] ?? 0) + t.amount;
     }
     return map.entries.map((e) => ChallengeShare(e.key, e.value)).toList()
       ..sort((a, b) => b.amount.compareTo(a.amount));

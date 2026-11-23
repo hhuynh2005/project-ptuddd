@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../analytics_service.dart';
 
-/// Biểu đồ tròn: tỷ trọng đóng góp theo từng loại thử thách.
+/// Biểu đồ tròn: tỷ trọng đóng góp theo danh mục.
 /// Chặn chia cho 0: tổng bằng 0 thì hiện trạng thái trống, không vẽ.
 class ChallengePieChart extends StatelessWidget {
   const ChallengePieChart({super.key, required this.shares});
@@ -24,7 +24,7 @@ class ChallengePieChart extends StatelessWidget {
     if (shares.isEmpty || total <= 0) {
       return const SizedBox(
         height: 200,
-        child: Center(child: Text('Chưa có đóng góp theo thử thách.')),
+        child: Center(child: Text('Chưa có đóng góp theo danh mục.')),
       );
     }
     return Column(
