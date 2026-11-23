@@ -1,9 +1,13 @@
+import '../../data/models/fund_transaction_model.dart';
 import 'data/mock_fund_data.dart';
 
 // Logic thuần, KHÔNG tính toán trong widget.
-// Nhận vào 'List<MockFundTx>', trả số liệu cho các biểu đồ.
-// Sprint 4: chỉ đổi đầu vào thành 'List<FundTransactionModel>' thật
-// (cùng các trường isIncome/amount/date/challenge) — các hàm giữ nguyên.
+// Giai đoạn 4 - C1: 3 hàm tổng (totalIncome/totalExpense/balance) đã
+// chuyển sang List<FundTransactionModel> thật. 3 hàm biểu đồ
+// (balanceByDay/incomeExpenseByMonth/contributionByChallenge) vẫn nhận
+// List<MockFundTx> — chuyển sang dữ liệu thật ở C2/C3.
+// Lưu ý trường của model thật: ngày là createdAt, loại là category
+// (KHÔNG có trường date/challenge như comment cũ từng ghi).
 
 class BalancePoint {
   const BalancePoint(this.label, this.balance);
@@ -27,13 +31,14 @@ class ChallengeShare {
 class AnalyticsService {
   const AnalyticsService();
 
-  double totalIncome(List<MockFundTx> txs) =>
+  double totalIncome(List<FundTransactionModel> txs) =>
       txs.where((t) => t.isIncome).fold(0, (s, t) => s + t.amount);
 
-  double totalExpense(List<MockFundTx> txs) =>
+  double totalExpense(List<FundTransactionModel> txs) =>
       txs.where((t) => !t.isIncome).fold(0, (s, t) => s + t.amount);
 
-  double balance(List<MockFundTx> txs) => totalIncome(txs) - totalExpense(txs);
+  double balance(List<FundTransactionModel> txs) =>
+      totalIncome(txs) - totalExpense(txs);
 
   /// Số dư cuối mỗi ngày trong 7 ngày gần nhất (cũ -> mới).
   /// Số dư ngày D = tổng thu - tổng chi của mọi giao dịch tới hết ngày D.
