@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'core/database/database_factory_setup.dart';
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/main_navigation_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  setupDatabaseFactory();
   runApp(const GoodDeedsFundApp());
 }
 
