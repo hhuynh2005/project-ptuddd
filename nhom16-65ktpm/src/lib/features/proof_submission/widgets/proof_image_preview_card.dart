@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../services/proof_image_storage_service.dart';
 
 /// Widget xem trước ảnh minh chứng (Sprint 2):
@@ -78,6 +79,7 @@ class ProofImagePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final img = storedImage;
     final timeFormat = DateFormat('HH:mm:ss - dd/MM/yyyy');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       elevation: 1,
@@ -88,19 +90,29 @@ class ProofImagePreviewCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.photo_camera_back_outlined),
+                const Icon(
+                  Icons.photo_camera_back_outlined,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Chụp & Xem trước ảnh minh chứng',
+                    '2. Chụp & Xem trước ảnh minh chứng',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (img != null)
                   TextButton.icon(
                     onPressed: onRemoveImage,
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    label: const Text('Xóa ảnh'),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: AppColors.danger,
+                    ),
+                    label: const Text(
+                      'Xóa ảnh',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
                   ),
               ],
             ),
@@ -113,27 +125,31 @@ class ProofImagePreviewCard extends StatelessWidget {
                   horizontal: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : AppColors.primary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                  ),
                 ),
-                child: Column(
+                child: const Column(
                   children: [
                     Icon(
                       Icons.add_a_photo_outlined,
                       size: 44,
-                      color: Colors.grey.shade600,
+                      color: AppColors.primary,
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
+                    SizedBox(height: 8),
+                    Text(
                       'Chưa có ảnh minh chứng thực tế',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Hãy chụp ảnh bàn học kèm đồng hồ, lớp gia sư hoặc bài tập đã hoàn thành. Ảnh sẽ được nén và lưu an toàn vào bộ nhớ máy.',
+                    SizedBox(height: 4),
+                    Text(
+                      'Hãy chụp ảnh bàn học kèm đồng hồ, lớp gia sư hoặc bài tập đã hoàn thành. Ảnh sẽ được nén (1280px, 80%) và lưu an toàn vào bộ nhớ máy.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -208,7 +224,7 @@ class ProofImagePreviewCard extends StatelessWidget {
                                   ),
                                   const Spacer(),
                                   Text(
-                                    img.formattedSize,
+                                    'Đã nén: ${img.formattedSize}',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 11,
@@ -251,23 +267,23 @@ class ProofImagePreviewCard extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: AppColors.info.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.folder_copy_outlined,
                           size: 18,
-                          color: Colors.blue.shade700,
+                          color: AppColors.info,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Đã lưu vào bộ nhớ máy: ${img.savedPath}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
-                              color: Colors.blue.shade900,
+                              color: AppColors.info,
                             ),
                           ),
                         ),

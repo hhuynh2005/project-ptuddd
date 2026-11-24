@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../analytics/data/mock_fund_data.dart';
+import '../../../data/models/proof_model.dart';
 
 // Một thẻ minh chứng trong danh sách chờ duyệt.
-// Chỉ hiển thị đúng những gì Commit 2 đã có: tên thử thách,
-// tên người nộp + giờ nộp. OCR và số tiền thêm ở Commit 4.
+// Giai đoạn 3 – C1: thẻ nhận ProofModel (dữ liệu thật từ SQLite)
+// thay cho MockProof của giai đoạn 2.
 class ProofCard extends StatelessWidget {
   const ProofCard({
     super.key,
@@ -13,7 +13,7 @@ class ProofCard extends StatelessWidget {
     required this.onTap,
   });
 
-  final MockProof proof;
+  final ProofModel proof;
   final String timeText;
   final VoidCallback onTap;
 
@@ -24,7 +24,7 @@ class ProofCard extends StatelessWidget {
         leading: CircleAvatar(
           child: Text(proof.memberName.isNotEmpty ? proof.memberName[0] : '?'),
         ),
-        title: Text(proof.challengeName),
+        title: Text(proof.challengeTitle),
         subtitle: Text('${proof.memberName} • $timeText'),
         onTap: onTap,
       ),

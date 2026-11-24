@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../data/models/challenge_model.dart';
 import '../../data/models/proof_model.dart';
+import '../../data/repositories/challenge_repository.dart';
 import '../../data/repositories/fund_repository.dart';
+import '../../data/repositories/proof_repository.dart';
 import 'data/mock_ocr_samples.dart';
 import 'mlkit_ocr_service.dart';
 import 'services/proof_image_storage_service.dart';
@@ -29,7 +32,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_01',
       title: 'Dậy sớm trước 6:00 sáng',
-      description: 'Chụp ảnh bàn học, đồng hồ hoặc app báo thức chứng minh bạn đã dậy và học bài trước 6h00.',
+      description:
+          'Chụp ảnh bàn học, đồng hồ hoặc app báo thức chứng minh bạn đã dậy và học bài trước 6h00.',
       rewardAmount: 20000,
       category: 'Kỷ luật',
       icon: 'wb_sunny',
@@ -37,7 +41,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_02',
       title: 'Gia sư dạy học cho trẻ em',
-      description: 'Dạy kèm 1 buổi học (toán, tiếng Việt, tiếng Anh) cho các em nhỏ có hoàn cảnh khó khăn.',
+      description:
+          'Dạy kèm 1 buổi học (toán, tiếng Việt, tiếng Anh) cho các em nhỏ có hoàn cảnh khó khăn.',
       rewardAmount: 50000,
       category: 'Gia sư',
       icon: 'school',
@@ -45,7 +50,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_03',
       title: 'Giải 5 bài toán tư duy / code thuật toán',
-      description: 'Chụp ảnh bài giải hoặc commit code trên nền tảng LeetCode/HackerRank rèn luyện tư duy.',
+      description:
+          'Chụp ảnh bài giải hoặc commit code trên nền tảng LeetCode/HackerRank rèn luyện tư duy.',
       rewardAmount: 30000,
       category: 'Học tập',
       icon: 'psychology',
@@ -53,7 +59,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     ChallengeModel(
       id: 'ch_04',
       title: 'Chạy bộ 3km hoặc rèn luyện thể thao',
-      description: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động chạy bộ nâng cao sức khỏe.',
+      description:
+          'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động chạy bộ nâng cao sức khỏe.',
       rewardAmount: 25000,
       category: 'Sức khỏe',
       icon: 'directions_run',
@@ -64,7 +71,9 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   final MlKitOcrService _ocrService = MlKitOcrService();
   final ProofImageStorageService _storageService =
       const ProofImageStorageService();
-  final FundRepository _fundRepository = FundRepository();
+  final IChallengeRepository _challengeRepository =
+      FundRepository.instance.challengeRepo;
+  final IProofRepository _proofRepository = FundRepository.instance.proofRepo;
 
   final TextEditingController _memberNameController = TextEditingController(
     text: 'Nguyễn Trung Kiên',
@@ -77,6 +86,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   List<ChallengeModel> _challenges = _fallbackChallenges;
   ChallengeModel _selectedChallenge = _fallbackChallenges.first;
   List<ProofModel> _submittedProofs = [];
+  ProofStorageStats? _storageStats;
 
   StoredProofImage? _storedImage;
   MockOcrSample _selectedSample = mockOcrSamples.first;
@@ -101,9 +111,14 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   }
 
   Future<void> _loadInitialData() async {
+    final stats = await _storageService.getStorageStats();
+    if (mounted) {
+      setState(() => _storageStats = stats);
+    }
+
     try {
-      final dbChallenges = await _fundRepository.getChallenges();
-      final dbProofs = await _fundRepository.getProofs();
+      final dbChallenges = await _challengeRepository.getChallenges();
+      final dbProofs = await _proofRepository.getProofs();
       if (!mounted) return;
       setState(() {
         if (dbChallenges.isNotEmpty) {
@@ -131,16 +146,15 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
         return;
       }
 
-      // Xóa tệp ảnh tạm của lần chụp trước (nếu chưa gửi) để tiết kiệm bộ nhớ.
       if (_storedImage != null) {
         await _storageService.deleteStoredImage(_storedImage!.savedPath);
       }
 
-      // Sao chép và lưu ảnh minh chứng vào bộ nhớ cục bộ của ứng dụng.
       final stored = await _storageService.saveImageToLocalStorage(
         pickedFile.path,
         challengeId: _selectedChallenge.id,
       );
+      final stats = await _storageService.getStorageStats();
 
       OcrScanResult result;
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
@@ -152,6 +166,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       if (!mounted) return;
       setState(() {
         _storedImage = stored;
+        _storageStats = stats;
         _capturedAt = stored.savedAt;
         _ocrResult = result;
         _isProcessing = false;
@@ -170,9 +185,11 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     if (current != null) {
       await _storageService.deleteStoredImage(current.savedPath);
     }
+    final stats = await _storageService.getStorageStats();
     if (!mounted) return;
     setState(() {
       _storedImage = null;
+      _storageStats = stats;
     });
   }
 
@@ -226,18 +243,22 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     );
 
     try {
-      await _fundRepository.submitProof(newProof);
-      final updatedProofs = await _fundRepository.getProofs();
+      await _proofRepository.submitProof(newProof);
+      final updatedProofs = await _proofRepository.getProofs();
+      final stats = await _storageService.getStorageStats();
       if (!mounted) return;
       setState(() {
         _submittedProofs = updatedProofs;
+        _storageStats = stats;
         _storedImage = null;
         _noteController.clear();
       });
     } catch (_) {
+      final stats = await _storageService.getStorageStats();
       if (!mounted) return;
       setState(() {
         _submittedProofs = [newProof, ..._submittedProofs];
+        _storageStats = stats;
         _storedImage = null;
         _noteController.clear();
       });
@@ -246,6 +267,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        backgroundColor: AppColors.success,
         content: Text(
           'Đã lưu ảnh và gửi minh chứng "${_selectedChallenge.title}" thành công!',
         ),
@@ -260,284 +282,330 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   Widget build(BuildContext context) {
     final timeFormat = DateFormat('HH:mm:ss - dd/MM/yyyy');
     final result = _ocrResult;
+    final stats = _storageStats;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Nộp minh chứng & AI OCR')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // 1. Chọn thử thách & Thông tin thành viên nộp
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Header tóm tắt bộ nhớ lưu trữ ảnh minh chứng trên thiết bị
+        if (stats != null)
           Card(
-            elevation: 1,
+            color: AppColors.primary.withValues(alpha: 0.08),
+            elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
                 children: [
-                  const Text(
-                    '1. Thông tin thử thách & Người nộp',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<ChallengeModel>(
-                    initialValue: _selectedChallenge,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Thử thách thực hiện',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _challenges.map((ch) {
-                      return DropdownMenuItem<ChallengeModel>(
-                        value: ch,
-                        child: Text(
-                          '${ch.title} (+${_formatReward(ch.rewardAmount)})',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (ch) {
-                      if (ch != null) {
-                        setState(() => _selectedChallenge = ch);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _selectedChallenge.description,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _memberNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Họ và tên thành viên',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _locationController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Vị trí / Địa điểm check-in',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                      border: OutlineInputBorder(),
+                  const Icon(Icons.sd_storage_outlined, color: AppColors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Bộ nhớ ảnh cục bộ: ${stats.imageCount} tệp (${stats.formattedTotalSize})',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+        if (stats != null) const SizedBox(height: 12),
 
-          // 2. Chụp, Xem trước & Lưu trữ ảnh minh chứng vào bộ nhớ máy
-          ProofImagePreviewCard(
-            storedImage: _storedImage,
-            locationLabel: _locationController.text,
-            onRetakeCamera: _isProcessing
-                ? null
-                : () => _pickAndSaveImage(ImageSource.camera),
-            onPickGallery: _isProcessing
-                ? null
-                : () => _pickAndSaveImage(ImageSource.gallery),
-            onRemoveImage: _isProcessing ? null : _removeSelectedImage,
-          ),
-          const SizedBox(height: 16),
-
-          // 3. Kịch bản mẫu thử nghiệm AI OCR
-          Card(
-            elevation: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Kịch bản mẫu AI OCR (Hỗ trợ kiểm thử nhanh)',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        // 1. Chọn thử thách & Thông tin thành viên nộp
+        Card(
+          elevation: 1,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '1. Thông tin thử thách & Người nộp',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<ChallengeModel>(
+                  initialValue: _selectedChallenge,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Thử thách thực hiện',
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<MockOcrSample>(
-                    initialValue: _selectedSample,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Chọn mẫu văn bản check-in',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: mockOcrSamples.map((sample) {
-                      return DropdownMenuItem<MockOcrSample>(
-                        value: sample,
-                        child: Text(
-                          '${sample.challengeTitle} (${sample.description})',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (sample) {
-                      if (sample != null) {
-                        _runSampleOcr(sample);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 4. Kết quả bóc tách văn bản & thời gian từ AI OCR
-          if (_isProcessing)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (result != null)
-            Card(
-              elevation: 1,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          result.isEarlyWakeUpValid
-                              ? Icons.verified
-                              : Icons.info_outline,
-                          color: result.isEarlyWakeUpValid
-                              ? Colors.green
-                              : Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Kết quả bóc tách từ AI OCR',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    if (_capturedAt != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'Mốc thời gian ghi nhận: ${timeFormat.format(_capturedAt!)}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        const Text(
-                          'Giờ đọc trên ảnh: ',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Chip(
-                          label: Text(
-                            result.extractedTime ?? 'Chưa phát hiện',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          backgroundColor: result.isEarlyWakeUpValid
-                              ? Colors.green.shade100
-                              : Colors.orange.shade100,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Văn bản nhận diện được:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                  items: _challenges.map((ch) {
+                    return DropdownMenuItem<ChallengeModel>(
+                      value: ch,
                       child: Text(
-                        result.rawText.isEmpty
-                            ? '(Không có văn bản)'
-                            : result.rawText,
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        '${ch.title} (+${_formatReward(ch.rewardAmount)})',
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    if (result.detectedKeywords.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Từ khóa thử thách phát hiện:',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                    );
+                  }).toList(),
+                  onChanged: (ch) {
+                    if (ch != null) {
+                      setState(() => _selectedChallenge = ch);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _selectedChallenge.description,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _memberNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Họ và tên thành viên',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _locationController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Vị trí / Địa điểm check-in',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 2. Chụp, Xem trước & Lưu trữ ảnh minh chứng vào bộ nhớ máy
+        ProofImagePreviewCard(
+          storedImage: _storedImage,
+          locationLabel: _locationController.text,
+          onRetakeCamera: _isProcessing
+              ? null
+              : () => _pickAndSaveImage(ImageSource.camera),
+          onPickGallery: _isProcessing
+              ? null
+              : () => _pickAndSaveImage(ImageSource.gallery),
+          onRemoveImage: _isProcessing ? null : _removeSelectedImage,
+        ),
+        const SizedBox(height: 16),
+
+        // 3. Kịch bản mẫu thử nghiệm AI OCR
+        Card(
+          elevation: 1,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '3. Kịch bản mẫu AI OCR (Hỗ trợ kiểm thử nhanh)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<MockOcrSample>(
+                  initialValue: _selectedSample,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Chọn mẫu văn bản check-in',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: mockOcrSamples.map((sample) {
+                    return DropdownMenuItem<MockOcrSample>(
+                      value: sample,
+                      child: Text(
+                        '${sample.challengeTitle} (${sample.description})',
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: result.detectedKeywords
-                            .map((kw) => Chip(label: Text(kw)))
-                            .toList(),
+                    );
+                  }).toList(),
+                  onChanged: (sample) {
+                    if (sample != null) {
+                      _runSampleOcr(sample);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 4. Kết quả bóc tách văn bản & thời gian từ AI OCR
+        if (_isProcessing)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (result != null)
+          Card(
+            elevation: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        result.isEarlyWakeUpValid
+                            ? Icons.verified
+                            : Icons.info_outline,
+                        color: result.isEarlyWakeUpValid
+                            ? AppColors.success
+                            : AppColors.warning,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          '4. Kết quả bóc tách từ AI OCR',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (result.isEarlyWakeUpValid
+                                  ? AppColors.success
+                                  : AppColors.warning)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          result.statusLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: result.isEarlyWakeUpValid
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: result.isEarlyWakeUpValid
-                            ? Colors.green.shade50
-                            : Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: result.isEarlyWakeUpValid
-                              ? Colors.green.shade300
-                              : Colors.amber.shade300,
+                  ),
+                  const Divider(height: 24),
+                  if (_capturedAt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Mốc thời gian ghi nhận: ${timeFormat.format(_capturedAt!)}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      const Text(
+                        'Giờ đọc trên ảnh: ',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Chip(
+                        label: Text(
+                          result.extractedTime ?? 'Chưa phát hiện',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      child: Text(result.validationMessage),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Văn bản nhận diện được:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      result.rawText.isEmpty
+                          ? '(Không có văn bản)'
+                          : result.rawText,
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                  ),
+                  if (result.detectedKeywords.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Từ khóa thử thách phát hiện:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: result.detectedKeywords
+                          .map((kw) => Chip(label: Text(kw)))
+                          .toList(),
                     ),
                   ],
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-
-          // 5. Ghi chú & Nút Lưu / Gửi minh chứng
-          TextField(
-            controller: _noteController,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Ghi chú minh chứng',
-              hintText:
-                  'Nhập mô tả ngắn về hoạt động thử thách vừa hoàn thành...',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: _isProcessing ? null : _submitProof,
-              icon: const Icon(Icons.cloud_upload_outlined),
-              label: const Text(
-                'Lưu ảnh & Gửi minh chứng chờ duyệt',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (result.isEarlyWakeUpValid
+                              ? AppColors.success
+                              : AppColors.warning)
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (result.isEarlyWakeUpValid
+                                ? AppColors.success
+                                : AppColors.warning)
+                            .withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(result.validationMessage),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
-          // 6. Danh sách minh chứng đã lưu trên máy
-          SubmittedProofHistoryList(proofs: _submittedProofs),
-        ],
-      ),
+        // 5. Ghi chú & Nút Lưu / Gửi minh chứng
+        TextField(
+          controller: _noteController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'Ghi chú minh chứng',
+            hintText:
+                'Nhập mô tả ngắn về hoạt động thử thách vừa hoàn thành...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: _isProcessing ? null : _submitProof,
+            icon: const Icon(Icons.cloud_upload_outlined),
+            label: const Text(
+              'Lưu ảnh & Gửi minh chứng chờ duyệt',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 6. Danh sách minh chứng đã lưu trên máy
+        SubmittedProofHistoryList(proofs: _submittedProofs),
+      ],
     );
   }
 }
