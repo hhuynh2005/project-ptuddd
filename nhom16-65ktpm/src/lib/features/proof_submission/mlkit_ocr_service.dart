@@ -1,5 +1,7 @@
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
+import 'models/ocr_analysis_detail.dart';
+import 'services/ocr_homework_matcher.dart';
 import 'services/ocr_time_extractor.dart';
 
 /// Kết quả bóc tách văn bản và xác thực sơ bộ từ ảnh minh chứng.
@@ -12,6 +14,7 @@ class OcrScanResult {
     required this.isEarlyWakeUpValid,
     required this.detectedKeywords,
     required this.validationMessage,
+    this.analysisDetail,
   });
 
   /// Toàn bộ văn bản nhận diện được trên ảnh.
@@ -35,6 +38,9 @@ class OcrScanResult {
   /// Thông điệp gợi ý sơ bộ từ AI cho người nộp và Admin.
   final String validationMessage;
 
+  /// Chi tiết phân tích chuyên sâu cả giờ đồng hồ và nội dung chữ trên bài làm (Sprint 3).
+  final OcrAnalysisDetail? analysisDetail;
+
   bool get hasText => rawText.trim().isNotEmpty;
 
   /// Nhãn tóm tắt trạng thái kiểm tra sơ bộ từ AI OCR.
@@ -52,29 +58,17 @@ class MlKitOcrService {
   MlKitOcrService({
     TextRecognitionScript script = TextRecognitionScript.latin,
     this.timeExtractor = const OcrTimeExtractor(),
+    this.homeworkMatcher = const OcrHomeworkMatcher(),
   }) : _textRecognizer = TextRecognizer(script: script);
 
   final TextRecognizer _textRecognizer;
   final OcrTimeExtractor timeExtractor;
-
-  static const List<String> _challengeKeywords = [
-    'flutter',
-    'lập trình',
-    'toán',
-    'gia sư',
-    'bài tập',
-    'học bài',
-    'tình thương',
-    'thử thách',
-    'check-in',
-    'strava',
-    'km',
-    'thuật toán',
-  ];
+  final OcrHomeworkMatcher homeworkMatcher;
 
   /// Nhận diện văn bản trực tiếp từ đường dẫn file ảnh bằng Google ML Kit.
   Future<OcrScanResult> recognizeFromImagePath(
     String imagePath, {
+    String? targetChallengeId,
     int earlyDeadlineHour = 6,
     int earlyDeadlineMinute = 0,
   }) async {
@@ -82,25 +76,27 @@ class MlKitOcrService {
     final recognizedText = await _textRecognizer.processImage(inputImage);
     return analyzeText(
       recognizedText.text,
+      targetChallengeId: targetChallengeId,
       earlyDeadlineHour: earlyDeadlineHour,
       earlyDeadlineMinute: earlyDeadlineMinute,
     );
   }
 
-  /// Phân tích văn bản bóc tách để tìm mốc thời gian check-in và từ khóa thử thách.
-  OcrScanResult analyzeText(
+  /// Phân tích chi tiết văn bản OCR gồm cả giờ đồng hồ và chữ trên bài làm (Sprint 3 - Giai đoạn 3).
+  OcrAnalysisDetail analyzeDetailedText(
     String rawText, {
+    String? targetChallengeId,
     int earlyDeadlineHour = 6,
     int earlyDeadlineMinute = 0,
   }) {
     final normalized = rawText.trim();
     if (normalized.isEmpty) {
-      return const OcrScanResult(
+      return const OcrAnalysisDetail(
         rawText: '',
-        extractedTime: null,
-        isEarlyWakeUpValid: false,
-        detectedKeywords: [],
-        validationMessage:
+        confidenceScore: 0,
+        isTimeValid: false,
+        isContentMatched: false,
+        summaryMessage:
             'Không phát hiện được chữ trên ảnh. Vui lòng chụp rõ đồng hồ hoặc nội dung bài làm.',
       );
     }
@@ -110,39 +106,92 @@ class MlKitOcrService {
       earlyDeadlineHour: earlyDeadlineHour,
       earlyDeadlineMinute: earlyDeadlineMinute,
     );
-    final formattedTime = timeInfo.formattedTime24h;
-    final isEarlyValid = timeInfo.isEarlyWakeUpValid;
+    final homeworkInfo = homeworkMatcher.matchHomeworkContent(
+      normalized,
+      targetChallengeId: targetChallengeId,
+    );
 
-    final lowerText = normalized.toLowerCase();
-    final foundKeywords = _challengeKeywords
-        .where((kw) => lowerText.contains(kw))
-        .toList();
+    final isEarlyChallenge =
+        targetChallengeId == null || targetChallengeId == 'ch_01';
+    final isTimeValid = isEarlyChallenge
+        ? timeInfo.isEarlyWakeUpValid
+        : timeInfo.hasTime;
+
+    var timeScore = 0;
+    if (timeInfo.hasTime) {
+      timeScore = isTimeValid ? 40 : 20;
+    }
+
+    final totalConfidence = (timeScore + homeworkInfo.contentScore).clamp(
+      0,
+      100,
+    );
 
     final dateSuffix = timeInfo.extractedDate != null
         ? ' ngày ${timeInfo.extractedDate}'
         : '';
 
     final String message;
-    if (formattedTime == null) {
+    if (!timeInfo.hasTime) {
       message =
-          'Đã đọc được nội dung chữ nhưng chưa tìm thấy mốc giờ (HH:mm) trên ảnh.';
-    } else if (isEarlyValid) {
+          'Đã đọc được nội dung bài làm nhưng chưa tìm thấy mốc giờ (HH:mm) trên ảnh.';
+    } else if (isEarlyChallenge && timeInfo.isEarlyWakeUpValid) {
       message =
-          'Hợp lệ khung giờ dậy sớm ($formattedTime$dateSuffix). Minh chứng đạt tiêu chuẩn sơ bộ.';
+          'Hợp lệ khung giờ dậy sớm (${timeInfo.formattedTime24h}$dateSuffix). Minh chứng đạt tiêu chuẩn sơ bộ ($totalConfidence%).';
+    } else if (!isEarlyChallenge && homeworkInfo.isTargetChallengeMatched) {
+      message =
+          'Nhận diện giờ ${timeInfo.formattedTime24h}$dateSuffix và nội dung bài làm khớp thử thách ($totalConfidence%).';
     } else {
       message =
-          'Phát hiện mốc giờ $formattedTime$dateSuffix (${timeInfo.periodLabel ?? 'Ngoài khung giờ'} - ngoài khung dậy sớm 04:00 - '
+          'Phát hiện mốc giờ ${timeInfo.formattedTime24h}$dateSuffix (${timeInfo.periodLabel ?? 'Ngoài khung giờ'} - ngoài khung dậy sớm 04:00 - '
           '${earlyDeadlineHour.toString().padLeft(2, '0')}:${earlyDeadlineMinute.toString().padLeft(2, '0')}).';
     }
 
-    return OcrScanResult(
+    return OcrAnalysisDetail(
       rawText: normalized,
-      extractedTime: formattedTime,
+      extractedTime: timeInfo.formattedTime24h,
       extractedDate: timeInfo.extractedDate,
       detectedPeriod: timeInfo.periodLabel,
-      isEarlyWakeUpValid: isEarlyValid,
-      detectedKeywords: foundKeywords,
-      validationMessage: message,
+      suggestedChallengeId: homeworkInfo.suggestedChallengeId,
+      suggestedCategory: homeworkInfo.suggestedCategory,
+      matchedKeywords: homeworkInfo.matchedKeywords,
+      homeworkMetrics: homeworkInfo.homeworkMetrics,
+      confidenceScore: totalConfidence,
+      isTimeValid: isTimeValid,
+      isContentMatched: homeworkInfo.isTargetChallengeMatched,
+      summaryMessage: message,
+    );
+  }
+
+  /// Phân tích văn bản bóc tách để tìm mốc thời gian check-in và từ khóa thử thách.
+  OcrScanResult analyzeText(
+    String rawText, {
+    String? targetChallengeId,
+    int earlyDeadlineHour = 6,
+    int earlyDeadlineMinute = 0,
+  }) {
+    final detail = analyzeDetailedText(
+      rawText,
+      targetChallengeId: targetChallengeId,
+      earlyDeadlineHour: earlyDeadlineHour,
+      earlyDeadlineMinute: earlyDeadlineMinute,
+    );
+
+    final timeInfo = timeExtractor.extract(
+      rawText,
+      earlyDeadlineHour: earlyDeadlineHour,
+      earlyDeadlineMinute: earlyDeadlineMinute,
+    );
+
+    return OcrScanResult(
+      rawText: detail.rawText,
+      extractedTime: detail.extractedTime,
+      extractedDate: detail.extractedDate,
+      detectedPeriod: detail.detectedPeriod,
+      isEarlyWakeUpValid: timeInfo.isEarlyWakeUpValid,
+      detectedKeywords: detail.matchedKeywords,
+      validationMessage: detail.summaryMessage,
+      analysisDetail: detail,
     );
   }
 
