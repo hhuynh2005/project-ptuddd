@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/auth_service.dart';
 import '../../data/repositories/fund_repository.dart';
 
 /// Màn hình Dashboard / Trang chủ GoodDeeds Fund chuẩn Senior Product Designer
@@ -117,6 +118,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// 1. Header chào hỏi cá nhân hóa
   Widget _buildUserWelcomeHeader(ThemeData theme, bool isDark) {
+    final user = AuthService.instance.currentUser;
+    final displayName = user != null ? user.name.split(' ').last : 'Bạn';
+    final initial = user != null && user.name.isNotEmpty ? user.name[0] : 'U';
+    final isAdmin = user?.isAdmin ?? false;
+
     return Row(
       children: [
         Container(
@@ -133,10 +139,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          child: const Center(
+          child: Center(
             child: Text(
-              'H',
-              style: TextStyle(
+              initial,
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
@@ -152,7 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 children: [
                   Text(
-                    'Xin chào, Huỳnh 👋',
+                    'Xin chào, $displayName 👋',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -164,15 +170,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.15),
+                      color: (isAdmin ? AppColors.primary : Colors.blueGrey)
+                          .withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text(
-                      'Admin',
+                    child: Text(
+                      isAdmin ? 'Admin' : 'Thành viên',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: isAdmin ? AppColors.primary : Colors.blueGrey,
                       ),
                     ),
                   ),
@@ -180,7 +187,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Cùng lan tỏa những điều tử tế hôm nay!',
+                user != null
+                    ? '${user.name} • MSSV: ${user.studentId}'
+                    : 'Cùng lan tỏa những điều tử tế hôm nay!',
                 style: TextStyle(
                   fontSize: 12,
                   color: theme.colorScheme.onSurfaceVariant,

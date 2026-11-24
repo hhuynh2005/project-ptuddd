@@ -8,6 +8,7 @@ import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
+import '../services/auth_service.dart';
 
 /// Màn hình điều hướng trung tâm MainNavigationScreen chuẩn Senior Product Designer
 /// - BottomNavigationBar 5 tabs với nút FAB tròn cam ấm nổi ở giữa cho Nộp minh chứng
@@ -16,11 +17,13 @@ import '../constants/app_strings.dart';
 class MainNavigationScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDarkMode;
+  final VoidCallback? onLogout;
 
   const MainNavigationScreen({
     super.key,
     required this.onToggleTheme,
     required this.isDarkMode,
+    this.onLogout,
   });
 
   @override
@@ -134,48 +137,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onPressed: () => ChatbotSheet.show(context),
           ),
 
-          // NÚT KIỂM DUYỆT ADMIN KÈM BADGE SỐ LƯỢNG CHỜ DUYỆT (Trần Anh Tuấn)
-          Stack(
-            alignment: Alignment.topRight,
-            children: [
-              IconButton(
-                tooltip: 'Kiểm duyệt minh chứng (Admin)',
-                icon: const Icon(Icons.admin_panel_settings_rounded),
-                color: AppColors.primary,
-                onPressed: _openAdminReview,
-              ),
-              if (_pendingProofsCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: theme.scaffoldBackgroundColor,
-                        width: 1.5,
+          // NÚT KIỂM DUYỆT ADMIN KÈM BADGE SỐ LƯỢNG CHỜ DUYỆT (CHỈ HIỂN THỊ KHI LÀ ADMIN)
+          if (AuthService.instance.isAdmin)
+            Stack(
+              alignment: Alignment.topRight,
+              children: [
+                IconButton(
+                  tooltip: 'Kiểm duyệt minh chứng (Admin)',
+                  icon: const Icon(Icons.admin_panel_settings_rounded),
+                  color: AppColors.primary,
+                  onPressed: _openAdminReview,
+                ),
+                if (_pendingProofsCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.scaffoldBackgroundColor,
+                          width: 1.5,
+                        ),
                       ),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$_pendingProofsCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$_pendingProofsCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
 
           // NÚT CHUYỂN CHẾ ĐỘ SÁNG / TỐI
           IconButton(
@@ -185,6 +189,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               size: 20,
             ),
             onPressed: widget.onToggleTheme,
+          ),
+
+          // NÚT ĐĂNG XUẤT TÀI KHOẢN
+          IconButton(
+            tooltip: 'Đăng xuất tài khoản',
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Xác nhận đăng xuất'),
+                  content: Text(
+                    'Bạn có chắc muốn đăng xuất khỏi tài khoản ${AuthService.instance.currentUser?.name ?? ""}? Sau khi đăng xuất bạn có thể chọn đăng nhập tài khoản khác để test phân quyền.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Hủy'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        widget.onLogout?.call();
+                      },
+                      child: const Text('Đăng xuất'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(width: 8),
         ],
