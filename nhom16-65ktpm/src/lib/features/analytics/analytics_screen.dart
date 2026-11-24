@@ -21,7 +21,7 @@ class AnalyticsScreen extends StatefulWidget {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   static const _fundGoal =
-      1000000.0; // Mục tiêu gây quỹ (mock — khớp Dashboard ở C4).
+      100000000.0; // Mục tiêu gây quỹ — khớp với Dashboard.
 
   late Future<List<FundTransactionModel>> _transactionsFuture;
 
