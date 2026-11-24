@@ -1,10 +1,14 @@
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
+import 'services/ocr_time_extractor.dart';
+
 /// Kết quả bóc tách văn bản và xác thực sơ bộ từ ảnh minh chứng.
 class OcrScanResult {
   const OcrScanResult({
     required this.rawText,
     required this.extractedTime,
+    this.extractedDate,
+    this.detectedPeriod,
     required this.isEarlyWakeUpValid,
     required this.detectedKeywords,
     required this.validationMessage,
@@ -15,6 +19,12 @@ class OcrScanResult {
 
   /// Mốc giờ trích xuất được từ ảnh (định dạng HH:mm), null nếu không tìm thấy.
   final String? extractedTime;
+
+  /// Ngày tháng trích xuất được trên ảnh (định dạng dd/MM/yyyy), null nếu không tìm thấy.
+  final String? extractedDate;
+
+  /// Nhãn buổi trong ngày suy luận từ giờ đồng hồ ('Sáng sớm', 'Buổi sáng', 'Buổi chiều', 'Buổi tối').
+  final String? detectedPeriod;
 
   /// Kết quả kiểm tra khung giờ dậy sớm hợp lệ (04:00 - 06:00 sáng).
   final bool isEarlyWakeUpValid;
@@ -39,14 +49,13 @@ class OcrScanResult {
 /// Dịch vụ AI OCR sử dụng Google ML Kit Text Recognition để đọc chữ và thời gian
 /// trên ảnh chụp minh chứng check-in.
 class MlKitOcrService {
-  MlKitOcrService({TextRecognitionScript script = TextRecognitionScript.latin})
-    : _textRecognizer = TextRecognizer(script: script);
+  MlKitOcrService({
+    TextRecognitionScript script = TextRecognitionScript.latin,
+    this.timeExtractor = const OcrTimeExtractor(),
+  }) : _textRecognizer = TextRecognizer(script: script);
 
   final TextRecognizer _textRecognizer;
-
-  static final RegExp _timePattern = RegExp(
-    r'\b([01]?\d|2[0-3])[:hH]([0-5]\d)\b',
-  );
+  final OcrTimeExtractor timeExtractor;
 
   static const List<String> _challengeKeywords = [
     'flutter',
@@ -58,6 +67,9 @@ class MlKitOcrService {
     'tình thương',
     'thử thách',
     'check-in',
+    'strava',
+    'km',
+    'thuật toán',
   ];
 
   /// Nhận diện văn bản trực tiếp từ đường dẫn file ảnh bằng Google ML Kit.
@@ -93,27 +105,22 @@ class MlKitOcrService {
       );
     }
 
-    final match = _timePattern.firstMatch(normalized);
-    String? formattedTime;
-    var isEarlyValid = false;
-
-    if (match != null) {
-      final hour = int.parse(match.group(1)!);
-      final minute = int.parse(match.group(2)!);
-      formattedTime =
-          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-
-      final totalMinutes = hour * 60 + minute;
-      final minEarlyMinutes = 4 * 60; // Từ 04:00 sáng
-      final maxEarlyMinutes = earlyDeadlineHour * 60 + earlyDeadlineMinute;
-      isEarlyValid =
-          totalMinutes >= minEarlyMinutes && totalMinutes <= maxEarlyMinutes;
-    }
+    final timeInfo = timeExtractor.extract(
+      normalized,
+      earlyDeadlineHour: earlyDeadlineHour,
+      earlyDeadlineMinute: earlyDeadlineMinute,
+    );
+    final formattedTime = timeInfo.formattedTime24h;
+    final isEarlyValid = timeInfo.isEarlyWakeUpValid;
 
     final lowerText = normalized.toLowerCase();
     final foundKeywords = _challengeKeywords
         .where((kw) => lowerText.contains(kw))
         .toList();
+
+    final dateSuffix = timeInfo.extractedDate != null
+        ? ' ngày ${timeInfo.extractedDate}'
+        : '';
 
     final String message;
     if (formattedTime == null) {
@@ -121,16 +128,18 @@ class MlKitOcrService {
           'Đã đọc được nội dung chữ nhưng chưa tìm thấy mốc giờ (HH:mm) trên ảnh.';
     } else if (isEarlyValid) {
       message =
-          'Hợp lệ khung giờ dậy sớm ($formattedTime). Minh chứng đạt tiêu chuẩn sơ bộ.';
+          'Hợp lệ khung giờ dậy sớm ($formattedTime$dateSuffix). Minh chứng đạt tiêu chuẩn sơ bộ.';
     } else {
       message =
-          'Phát hiện mốc giờ $formattedTime (ngoài khung dậy sớm 04:00 - '
+          'Phát hiện mốc giờ $formattedTime$dateSuffix (${timeInfo.periodLabel ?? 'Ngoài khung giờ'} - ngoài khung dậy sớm 04:00 - '
           '${earlyDeadlineHour.toString().padLeft(2, '0')}:${earlyDeadlineMinute.toString().padLeft(2, '0')}).';
     }
 
     return OcrScanResult(
       rawText: normalized,
       extractedTime: formattedTime,
+      extractedDate: timeInfo.extractedDate,
+      detectedPeriod: timeInfo.periodLabel,
       isEarlyWakeUpValid: isEarlyValid,
       detectedKeywords: foundKeywords,
       validationMessage: message,
