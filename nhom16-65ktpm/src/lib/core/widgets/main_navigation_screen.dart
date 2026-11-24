@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../data/models/challenge_model.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../../features/admin_review/admin_review_screen.dart';
 import '../../features/analytics/analytics_screen.dart';
+import '../../features/challenges/challenge_detail_screen.dart';
 import '../../features/chatbot/chatbot_sheet.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
@@ -274,8 +276,54 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  void _openChallengeDetail(ChallengeModel challenge) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChallengeDetailScreen(
+          challenge: challenge,
+          onJoinNow: () => _onSelectTab(2),
+        ),
+      ),
+    );
+  }
+
   /// Tab Thử thách việc tốt
   Widget _buildChallengesView() {
+    const challenges = [
+      ChallengeModel(
+        id: 'ch_01',
+        title: 'Dậy sớm trước 6:00 sáng học bài',
+        description: 'Chụp ảnh bàn học kèm đồng hồ rõ mốc thời gian để AI OCR xác thực dậy sớm.',
+        rewardAmount: 20000,
+        category: 'Kỷ luật',
+        icon: 'alarm',
+      ),
+      ChallengeModel(
+        id: 'ch_02',
+        title: 'Gia sư dạy học cho trẻ em vùng cao',
+        description: 'Dạy học 1 buổi toán, tiếng Việt hoặc kỹ năng sống cho các em nhỏ khó khăn.',
+        rewardAmount: 50000,
+        category: 'Cộng đồng',
+        icon: 'school',
+      ),
+      ChallengeModel(
+        id: 'ch_03',
+        title: 'Giải 5 bài toán tư duy / code thuật toán',
+        description: 'Rèn luyện tư duy logic trên LeetCode/HackerRank hoặc giải toán nâng cao.',
+        rewardAmount: 30000,
+        category: 'Học tập',
+        icon: 'psychology',
+      ),
+      ChallengeModel(
+        id: 'ch_04',
+        title: 'Chạy bộ 3km hoặc thể thao nâng cao sức khỏe',
+        description: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động rèn luyện.',
+        rewardAmount: 25000,
+        category: 'Sức khỏe',
+        icon: 'directions_run',
+      ),
+    ];
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -294,99 +342,81 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        _buildChallengeCardItem(
-          title: 'Dậy sớm trước 6:00 sáng học bài',
-          desc: 'Chụp ảnh bàn học kèm đồng hồ rõ mốc thời gian.',
-          reward: '+20.000 đ',
-          category: 'Kỷ luật',
-          icon: Icons.alarm_rounded,
-          color: Colors.amber.shade800,
-        ),
-        _buildChallengeCardItem(
-          title: 'Gia sư dạy học cho trẻ em vùng cao',
-          desc: 'Dạy học 1 buổi toán, tiếng Việt hoặc kỹ năng sống.',
-          reward: '+50.000 đ',
-          category: 'Cộng đồng',
-          icon: Icons.school_rounded,
-          color: AppColors.primary,
-        ),
-        _buildChallengeCardItem(
-          title: 'Giải 5 bài toán tư duy / code thuật toán',
-          desc: 'Rèn luyện tư duy logic trên LeetCode/HackerRank.',
-          reward: '+30.000 đ',
-          category: 'Học tập',
-          icon: Icons.psychology_rounded,
-          color: Colors.purple,
-        ),
-        _buildChallengeCardItem(
-          title: 'Chạy bộ 3km hoặc thể thao nâng cao sức khỏe',
-          desc: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch.',
-          reward: '+25.000 đ',
-          category: 'Sức khỏe',
-          icon: Icons.directions_run_rounded,
-          color: Colors.blue,
-        ),
+        ...challenges.map((c) => _buildChallengeCardItem(c)),
       ],
     );
   }
 
-  Widget _buildChallengeCardItem({
-    required String title,
-    required String desc,
-    required String reward,
-    required String category,
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _buildChallengeCardItem(ChallengeModel c) {
+    final color = ChallengeDetailScreen.getCategoryColor(c.category);
+    final icon = ChallengeDetailScreen.getIconData(c.icon);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(desc, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openChallengeDetail(c),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
               ),
-              child: Text(
-                category,
-                style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.bold, color: color),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      c.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        c.category,
+                        style: TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.bold, color: color),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.accentLight,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            reward,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.accent,
-            ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.accentLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '+${c.formattedRewardAmount}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.accent,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
