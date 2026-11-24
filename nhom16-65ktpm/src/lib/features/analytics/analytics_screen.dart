@@ -9,9 +9,9 @@ import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C3: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
-// đã dùng dữ liệu thật từ FundRepository.getTransactions — không còn
-// dữ liệu mẫu trong màn hình này.
+// Giai đoạn 4 - C5: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
+// dùng dữ liệu thật từ FundRepository.getTransactions; các trạng thái
+// tải / lỗi / rỗng đều có nút nạp lại số liệu.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -29,6 +29,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   void initState() {
     super.initState();
     _transactionsFuture = FundRepository.instance.getTransactions();
+  }
+
+  /// Nạp lại danh sách giao dịch từ Sổ Quỹ.
+  /// Gắn với nút "Thử lại" ở trạng thái lỗi và nút "Tải lại" ở trạng
+  /// thái chưa có giao dịch, để không phải mở lại màn hình.
+  void _reload() {
+    setState(() {
+      _transactionsFuture = FundRepository.instance.getTransactions();
+    });
   }
 
   String _money(double v) =>
@@ -68,14 +77,57 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         future: _transactionsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Đang tải số liệu...'),
+                ],
+              ),
+            );
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Không tải được số liệu quỹ.'));
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  const Text('Không tải được số liệu quỹ.'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _reload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            );
           }
           final txs = snapshot.data ?? const <FundTransactionModel>[];
           if (txs.isEmpty) {
-            return const Center(child: Text('Chưa có giao dịch quỹ.'));
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.inbox_outlined,
+                    size: 48,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Chưa có giao dịch quỹ.'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _reload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Tải lại'),
+                  ),
+                ],
+              ),
+            );
           }
 
           const service = AnalyticsService();
