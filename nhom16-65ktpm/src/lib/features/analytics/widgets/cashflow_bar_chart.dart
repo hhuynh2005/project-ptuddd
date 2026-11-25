@@ -3,6 +3,25 @@ import 'package:flutter/material.dart';
 
 import '../analytics_service.dart';
 
+/// Chọn khoảng tick "tròn" cho trục tung theo độ lớn của giá trị lớn nhất,
+/// đồng thời làm tròn maxY lên bội của khoảng tick — để các nhãn trục
+/// cách đều nhau và không bị đè (lỗi lộ ra khi số liệu thật lên hàng triệu).
+(double, double) _axisScale(double rawMax) {
+  final max = rawMax <= 0 ? 100000.0 : rawMax;
+  final interval = max > 1000000
+      ? 500000.0
+      : max > 200000
+      ? 100000.0
+      : max > 50000
+      ? 20000.0
+      : max > 10000
+      ? 5000.0
+      : 1000.0;
+  var maxY = (max / interval).ceil() * interval;
+  if (maxY <= max) maxY += interval;
+  return (interval, maxY);
+}
+
 /// Biểu đồ cột: thu (xanh) / chi (đỏ) theo tháng.
 class CashflowBarChart extends StatelessWidget {
   const CashflowBarChart({super.key, required this.points});
@@ -20,12 +39,13 @@ class CashflowBarChart extends StatelessWidget {
     final maxVal = points
         .expand((p) => [p.income, p.expense])
         .reduce((a, b) => a > b ? a : b);
+    final (interval, maxY) = _axisScale(maxVal);
     return SizedBox(
       height: 220,
       child: BarChart(
         BarChartData(
-          maxY: maxVal * 1.2 + 10000,
-          gridData: FlGridData(show: true, horizontalInterval: maxVal / 4),
+          maxY: maxY,
+          gridData: FlGridData(show: true, horizontalInterval: interval),
           borderData: FlBorderData(show: true),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(
@@ -37,7 +57,7 @@ class CashflowBarChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                interval: maxVal / 4,
+                interval: interval,
                 reservedSize: 48,
                 getTitlesWidget: (value, meta) => Text(
                   '${(value / 1000).round()}k',
