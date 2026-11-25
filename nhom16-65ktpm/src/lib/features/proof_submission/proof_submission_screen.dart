@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/auth_service.dart';
 import '../../data/models/challenge_model.dart';
 import '../../data/models/proof_model.dart';
 import '../../data/repositories/challenge_repository.dart';
@@ -97,6 +98,10 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   @override
   void initState() {
     super.initState();
+    final currentUser = AuthService.instance.currentUser;
+    if (currentUser != null && currentUser.name.isNotEmpty) {
+      _memberNameController.text = currentUser.name;
+    }
     _runSampleOcr(_selectedSample);
     _loadInitialData();
   }
