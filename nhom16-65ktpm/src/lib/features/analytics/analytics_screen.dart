@@ -19,7 +19,8 @@ import 'widgets/fund_line_chart.dart';
 // Giai đoạn 4 - C9: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
 // dùng dữ liệu thật từ FundRepository.getTransactions; mục tiêu quỹ đọc
 // từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard;
-// xuất báo cáo CSV và PDF qua nút tải xuống trên AppBar.
+// nút Xuất báo cáo ở thân màn hình bật popup ngay tại nút, trong popup
+// là 2 nút lựa chọn bo tròn phân biệt màu (Xuất CSV xanh lá, Xuất PDF đỏ).
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -60,6 +61,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (changed == true) {
       _loadGoal();
     }
+  }
+
+  /// Một nút lựa chọn trong popup Xuất báo cáo: pill bo tròn có màu
+  /// riêng cho từng định dạng (CSV xanh lá, PDF đỏ) kèm icon và chữ.
+  Widget _exportChoiceButton(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
   }
 
   /// Xuất Sổ Quỹ ra file CSV (Giai đoạn 4 - C8).
@@ -177,18 +198,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       appBar: AppBar(
         title: const Text('Thống kê quỹ từ thiện'),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.download),
-            tooltip: 'Xuất báo cáo',
-            onSelected: (value) {
-              if (value == 'csv') _exportCsv();
-              if (value == 'pdf') _exportPdf();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'csv', child: Text('Xuất CSV')),
-              PopupMenuItem(value: 'pdf', child: Text('Xuất PDF')),
-            ],
-          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Cài đặt',
@@ -290,6 +299,75 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
               const SizedBox(height: 8),
               LinearProgressIndicator(value: goalProgress),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: PopupMenuButton<String>(
+                  position: PopupMenuPosition.under,
+                  tooltip: 'Xuất báo cáo',
+                  onSelected: (value) {
+                    if (value == 'csv') _exportCsv();
+                    if (value == 'pdf') _exportPdf();
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'csv',
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: _exportChoiceButton(
+                        Icons.table_chart,
+                        'Xuất CSV',
+                        Colors.green.shade700,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'pdf',
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: _exportChoiceButton(
+                        Icons.picture_as_pdf,
+                        'Xuất PDF',
+                        Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 24,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.download,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Xuất báo cáo',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
               const Text(
                 'Biến động số dư (7 ngày)',
