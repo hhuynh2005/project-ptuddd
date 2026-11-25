@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/auth_service.dart';
 import '../../data/models/challenge_model.dart';
+import '../../data/models/fund_transaction_model.dart';
 import '../../data/models/proof_model.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../challenges/challenge_detail_screen.dart';
@@ -34,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _proofCount = 0;
   List<ProofModel> _proofs = [];
   List<ChallengeModel> _challenges = [];
+  List<FundTransactionModel> _recentTransactions = [];
 
   static const double _targetFund = 100000000; // 100 triệu VNĐ
 
@@ -90,6 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final expense = await _fundRepo.getTotalExpense();
       final proofs = await _fundRepo.getProofs();
       final challenges = await _fundRepo.getChallenges();
+      final transactions = await _fundRepo.getTransactions();
 
       if (mounted) {
         setState(() {
@@ -99,6 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _proofCount = proofs.length;
           _proofs = proofs;
           _challenges = challenges.isNotEmpty ? challenges : _defaultChallenges;
+          _recentTransactions = transactions.take(4).toList();
           _isLoading = false;
         });
       }
@@ -660,7 +664,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: list.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final c = list[index];
           final color = ChallengeDetailScreen.getCategoryColor(c.category);
@@ -769,7 +773,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: members.length,
-              separatorBuilder: (_, __) => const Divider(height: 16),
+              separatorBuilder: (_, _) => const Divider(height: 16),
               itemBuilder: (context, index) {
                 final m = members[index];
                 return Row(
@@ -830,34 +834,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// 7. Hoạt động gần đây (Timeline)
+  /// 7. Hoạt động gần đây (Timeline động từ SQLite)
   Widget _buildRecentActivityTimeline(ThemeData theme) {
-    final activities = [
-      {
-        'title': 'Dậy sớm học bài thành công',
-        'member': 'Nguyễn Văn Huỳnh',
-        'time': '5:45 hôm nay',
-        'amount': '+20.000 đ',
-        'icon': Icons.alarm_on_rounded,
-        'color': AppColors.primary,
-      },
-      {
-        'title': 'Dạy kèm môn Toán cho em nhỏ',
-        'member': 'Lê Anh Tuấn',
-        'time': 'Hôm qua',
-        'amount': '+50.000 đ',
-        'icon': Icons.school_rounded,
-        'color': Colors.blueAccent,
-      },
-      {
-        'title': 'Tài trợ mở quỹ thiện nguyện',
-        'member': 'Cựu sinh viên KTPM K60',
-        'time': '3 ngày trước',
-        'amount': '+2.000.000 đ',
-        'icon': Icons.volunteer_activism_rounded,
-        'color': AppColors.accent,
-      },
-    ];
+    final timeFormat = DateFormat('HH:mm dd/MM');
 
     return Card(
       child: Padding(
@@ -877,58 +856,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: activities.length,
-              separatorBuilder: (_, __) => const Divider(height: 16),
-              itemBuilder: (context, index) {
-                final a = activities[index];
-                final color = a['color'] as Color;
-                return Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
+            if (_recentTransactions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Chưa có biến động quỹ nào được ghi nhận.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _recentTransactions.length,
+                separatorBuilder: (_, _) => const Divider(height: 16),
+                itemBuilder: (context, index) {
+                  final tx = _recentTransactions[index];
+                  final isIncome = tx.isIncome;
+                  final color = isIncome ? AppColors.primary : AppColors.accent;
+                  final icon = isIncome
+                      ? Icons.volunteer_activism_rounded
+                      : Icons.outbox_rounded;
+                  final prefix = isIncome ? '+' : '-';
+
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: color, size: 16),
                       ),
-                      child: Icon(a['icon'] as IconData, color: color, size: 16),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${a['member']} • ${a['time']}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: theme.colorScheme.onSurfaceVariant,
+                            Text(
+                              '${tx.recipientOrSponsor} • ${timeFormat.format(tx.createdAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(
-                      a['amount'] as String,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
+                      const SizedBox(width: 8),
+                      Text(
+                        '$prefix${_currencyFormat.format(tx.amount)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isIncome ? AppColors.success : AppColors.danger,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                    ],
+                  );
+                },
+              ),
           ],
         ),
       ),

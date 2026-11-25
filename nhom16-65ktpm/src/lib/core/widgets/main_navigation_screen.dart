@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../data/models/challenge_model.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../../features/admin_review/admin_review_screen.dart';
 import '../../features/analytics/analytics_screen.dart';
-import '../../features/challenges/challenge_detail_screen.dart';
+import '../../features/challenges/challenge_list_screen.dart';
 import '../../features/chatbot/chatbot_sheet.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
@@ -77,7 +76,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   List<Widget> get _screens => [
         DashboardScreen(onNavigateTab: _onSelectTab),
-        _buildChallengesView(),
+        ChallengeListScreen(onJoinChallenge: () => _onSelectTab(2)),
         const ProofSubmissionScreen(),
         _buildFundLedgerView(),
         const AnalyticsScreen(),
@@ -272,153 +271,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Báo cáo',
           ),
         ],
-      ),
-    );
-  }
-
-  void _openChallengeDetail(ChallengeModel challenge) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChallengeDetailScreen(
-          challenge: challenge,
-          onJoinNow: () => _onSelectTab(2),
-        ),
-      ),
-    );
-  }
-
-  /// Tab Thử thách việc tốt
-  Widget _buildChallengesView() {
-    const challenges = [
-      ChallengeModel(
-        id: 'ch_01',
-        title: 'Dậy sớm trước 6:00 sáng học bài',
-        description: 'Chụp ảnh bàn học kèm đồng hồ rõ mốc thời gian để AI OCR xác thực dậy sớm.',
-        rewardAmount: 20000,
-        category: 'Kỷ luật',
-        icon: 'alarm',
-      ),
-      ChallengeModel(
-        id: 'ch_02',
-        title: 'Gia sư dạy học cho trẻ em vùng cao',
-        description: 'Dạy học 1 buổi toán, tiếng Việt hoặc kỹ năng sống cho các em nhỏ khó khăn.',
-        rewardAmount: 50000,
-        category: 'Cộng đồng',
-        icon: 'school',
-      ),
-      ChallengeModel(
-        id: 'ch_03',
-        title: 'Giải 5 bài toán tư duy / code thuật toán',
-        description: 'Rèn luyện tư duy logic trên LeetCode/HackerRank hoặc giải toán nâng cao.',
-        rewardAmount: 30000,
-        category: 'Học tập',
-        icon: 'psychology',
-      ),
-      ChallengeModel(
-        id: 'ch_04',
-        title: 'Chạy bộ 3km hoặc thể thao nâng cao sức khỏe',
-        description: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động rèn luyện.',
-        rewardAmount: 25000,
-        category: 'Sức khỏe',
-        icon: 'directions_run',
-      ),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Danh Mục Thử Thách',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: () => _onSelectTab(2),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Tham gia'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...challenges.map((c) => _buildChallengeCardItem(c)),
-      ],
-    );
-  }
-
-  Widget _buildChallengeCardItem(ChallengeModel c) {
-    final color = ChallengeDetailScreen.getCategoryColor(c.category);
-    final icon = ChallengeDetailScreen.getIconData(c.icon);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _openChallengeDetail(c),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      c.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      c.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        c.category,
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold, color: color),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.accentLight,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '+${c.formattedRewardAmount}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.accent,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
