@@ -16,10 +16,10 @@ import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C8: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
+// Giai đoạn 4 - C9: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
 // dùng dữ liệu thật từ FundRepository.getTransactions; mục tiêu quỹ đọc
 // từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard;
-// xuất báo cáo CSV qua nút tải xuống trên AppBar.
+// xuất báo cáo CSV và PDF qua nút tải xuống trên AppBar.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -100,6 +100,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
+  /// Xuất báo cáo quỹ ra file PDF (Giai đoạn 4 - C9).
+  /// Cùng nguồn dữ liệu với CSV; bản PDF có bảng kẻ border, dùng để
+  /// in hoặc nộp báo cáo. Lưu bằng FileSaver giống CSV.
+  Future<void> _exportPdf() async {
+    final txs = await FundRepository.instance.getTransactions();
+    if (!mounted) return;
+    if (txs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chưa có giao dịch để xuất.')),
+      );
+      return;
+    }
+    final fileName =
+        'bao_cao_quy_${DateFormat('yyyyMMdd').format(DateTime.now())}';
+    try {
+      final bytes = await const ReportExporter().buildPdf(txs);
+      await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: bytes,
+        fileExtension: 'pdf',
+        mimeType: MimeType.pdf,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Đã xuất file PDF.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xuất PDF thất bại, thử lại sau.')),
+      );
+    }
+  }
+
   /// Nạp lại danh sách giao dịch từ Sổ Quỹ.
   /// Gắn với nút "Thử lại" ở trạng thái lỗi và nút "Tải lại" ở trạng
   /// thái chưa có giao dịch, để không phải mở lại màn hình.
@@ -149,9 +182,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             tooltip: 'Xuất báo cáo',
             onSelected: (value) {
               if (value == 'csv') _exportCsv();
+              if (value == 'pdf') _exportPdf();
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'csv', child: Text('Xuất CSV')),
+              PopupMenuItem(value: 'pdf', child: Text('Xuất PDF')),
             ],
           ),
           IconButton(
