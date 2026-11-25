@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/fund_transaction_model.dart';
 import '../../data/repositories/fund_repository.dart';
+import '../settings/settings_screen.dart';
 import 'analytics_service.dart';
 import 'widgets/cashflow_bar_chart.dart';
 import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C5: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
-// dùng dữ liệu thật từ FundRepository.getTransactions; các trạng thái
-// tải / lỗi / rỗng đều có nút nạp lại số liệu.
+// Giai đoạn 4 - C7: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
+// dùng dữ liệu thật từ FundRepository.getTransactions; mục tiêu quỹ đọc
+// từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -20,8 +22,8 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  static const _fundGoal =
-      100000000.0; // Mục tiêu gây quỹ — khớp với Dashboard.
+  // Mục tiêu quỹ mặc định 100 triệu; có thể đổi ở màn Cài đặt.
+  double _fundGoal = 100000000.0;
 
   late Future<List<FundTransactionModel>> _transactionsFuture;
 
@@ -29,6 +31,29 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   void initState() {
     super.initState();
     _transactionsFuture = FundRepository.instance.getTransactions();
+    _loadGoal();
+  }
+
+  /// Đọc mục tiêu quỹ đã lưu trong Cài đặt (nếu chưa lưu thì giữ 100 triệu).
+  Future<void> _loadGoal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble('fund_goal');
+    if (saved != null && saved > 0 && mounted) {
+      setState(() {
+        _fundGoal = saved;
+      });
+    }
+  }
+
+  /// Mở màn Cài đặt; quay lại thì đọc lại mục tiêu quỹ nếu đã đổi.
+  Future<void> _openSettings() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => SettingsScreen(currentGoal: _fundGoal)),
+    );
+    if (changed == true) {
+      _loadGoal();
+    }
   }
 
   /// Nạp lại danh sách giao dịch từ Sổ Quỹ.
@@ -72,7 +97,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Thống kê quỹ từ thiện')),
+      appBar: AppBar(
+        title: const Text('Thống kê quỹ từ thiện'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Cài đặt',
+            onPressed: _openSettings,
+          ),
+        ],
+      ),
       body: FutureBuilder<List<FundTransactionModel>>(
         future: _transactionsFuture,
         builder: (context, snapshot) {
