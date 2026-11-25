@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,14 +10,16 @@ import '../../data/models/fund_transaction_model.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../settings/settings_screen.dart';
 import 'analytics_service.dart';
+import 'report_exporter.dart';
 import 'widgets/cashflow_bar_chart.dart';
 import 'widgets/challenge_pie_chart.dart';
 import 'widgets/fund_line_chart.dart';
 
 // Màn hình Báo cáo & Thống kê minh bạch quỹ.
-// Giai đoạn 4 - C7: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
+// Giai đoạn 4 - C8: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
 // dùng dữ liệu thật từ FundRepository.getTransactions; mục tiêu quỹ đọc
-// từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard.
+// từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard;
+// xuất báo cáo CSV qua nút tải xuống trên AppBar.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -53,6 +59,44 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
     if (changed == true) {
       _loadGoal();
+    }
+  }
+
+  /// Xuất Sổ Quỹ ra file CSV (Giai đoạn 4 - C8).
+  /// Lấy dữ liệu mới nhất từ FundRepository; file chèn BOM UTF-8 để
+  /// Excel hiển thị đúng tiếng Việt. Windows lưu vào thư mục Downloads
+  /// (hoặc hiện hộp thoại lưu), web tải file xuống trực tiếp.
+  Future<void> _exportCsv() async {
+    final txs = await FundRepository.instance.getTransactions();
+    if (!mounted) return;
+    if (txs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chưa có giao dịch để xuất.')),
+      );
+      return;
+    }
+    final csv = const ReportExporter().buildCsv(txs);
+    final bytes = Uint8List.fromList([
+      0xEF, 0xBB, 0xBF, // BOM UTF-8 cho Excel đọc đúng tiếng Việt
+      ...utf8.encode(csv),
+    ]);
+    final fileName =
+        'bao_cao_quy_${DateFormat('yyyyMMdd').format(DateTime.now())}';
+    try {
+      await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: bytes,
+        fileExtension: 'csv',
+        mimeType: MimeType.csv,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Đã xuất file CSV.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xuất CSV thất bại, thử lại sau.')),
+      );
     }
   }
 
@@ -100,6 +144,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       appBar: AppBar(
         title: const Text('Thống kê quỹ từ thiện'),
         actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.download),
+            tooltip: 'Xuất báo cáo',
+            onSelected: (value) {
+              if (value == 'csv') _exportCsv();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'csv', child: Text('Xuất CSV')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Cài đặt',
