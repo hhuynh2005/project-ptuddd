@@ -581,7 +581,7 @@ class ChallengeDetailScreen extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: recentMembers.length,
-              separatorBuilder: (_, __) => const Divider(height: 14),
+              separatorBuilder: (_, _) => const Divider(height: 14),
               itemBuilder: (context, index) {
                 final m = recentMembers[index];
                 return Row(
