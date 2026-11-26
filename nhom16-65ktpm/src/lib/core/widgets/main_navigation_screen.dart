@@ -6,6 +6,7 @@ import '../../features/analytics/analytics_screen.dart';
 import '../../features/challenges/challenge_list_screen.dart';
 import '../../features/chatbot/chatbot_sheet.dart';
 import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/fund_ledger/fund_ledger_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
@@ -78,7 +79,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         DashboardScreen(onNavigateTab: _onSelectTab),
         ChallengeListScreen(onJoinChallenge: () => _onSelectTab(2)),
         const ProofSubmissionScreen(),
-        _buildFundLedgerView(),
+        FundLedgerScreen(onNavigateToAnalytics: () => _onSelectTab(4)),
         const AnalyticsScreen(),
       ];
 

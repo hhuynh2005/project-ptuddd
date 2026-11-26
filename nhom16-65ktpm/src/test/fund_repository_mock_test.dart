@@ -94,16 +94,24 @@ class MockFundTransactionRepository implements IFundTransactionRepository {
 
   @override
   Future<double> getTotalIncome() async {
-    return _transactions
-        .where((t) => t.isIncome)
-        .fold(0.0, (sum, t) => sum + t.amount);
+    double total = 0.0;
+    for (final t in _transactions) {
+      if (t.isIncome) {
+        total += t.amount;
+      }
+    }
+    return total;
   }
 
   @override
   Future<double> getTotalExpense() async {
-    return _transactions
-        .where((t) => t.isExpense)
-        .fold(0.0, (sum, t) => sum + t.amount);
+    double total = 0.0;
+    for (final t in _transactions) {
+      if (t.isExpense) {
+        total += t.amount;
+      }
+    }
+    return total;
   }
 
   @override
