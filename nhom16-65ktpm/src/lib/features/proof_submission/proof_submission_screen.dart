@@ -14,13 +14,14 @@ import '../../data/repositories/proof_repository.dart';
 import 'data/mock_ocr_samples.dart';
 import 'mlkit_ocr_service.dart';
 import 'services/proof_image_storage_service.dart';
+import 'services/proof_validation_helper.dart';
 import 'widgets/ocr_result_analysis_card.dart';
 import 'widgets/proof_image_preview_card.dart';
 import 'widgets/submitted_proof_history_list.dart';
 
 /// Màn hình Chụp, Xem trước & Nộp minh chứng thử thách (Sprint 2 - Sprint 3).
 /// Tích hợp lưu trữ ảnh cục bộ vào bộ nhớ máy, xem trước phóng to ảnh,
-/// phân tích chuyên sâu AI OCR (giờ đồng hồ & chữ trên bài làm), tự động điền dữ liệu
+/// phân tích chuyên sâu AI OCR, kiểm tra cảnh báo sơ bộ trước khi gửi
 /// và lưu hồ sơ minh chứng vào cơ sở dữ liệu.
 class ProofSubmissionScreen extends StatefulWidget {
   const ProofSubmissionScreen({super.key});
@@ -73,6 +74,8 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   final MlKitOcrService _ocrService = MlKitOcrService();
   final ProofImageStorageService _storageService =
       const ProofImageStorageService();
+  final ProofValidationHelper _validationHelper =
+      const ProofValidationHelper();
   final IChallengeRepository _challengeRepository =
       FundRepository.instance.challengeRepo;
   final IProofRepository _proofRepository = FundRepository.instance.proofRepo;
@@ -269,24 +272,100 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Đã tự động điền thông tin trích xuất từ ảnh vào ghi chú.'),
+        content: Text(
+          'Đã tự động điền thông tin trích xuất từ ảnh vào ghi chú.',
+        ),
       ),
     );
   }
 
-  Future<void> _submitProof() async {
-    final memberName = _memberNameController.text.trim();
-    if (memberName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Vui lòng nhập họ và tên thành viên trước khi nộp minh chứng.',
+  Future<bool> _confirmWarningsDialog(List<String> warnings) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Lưu ý kiểm tra từ AI OCR',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Hệ thống phát hiện một số điểm cần lưu ý trước khi gửi cho Admin xét duyệt:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...warnings.map(
+                (w) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child: Text(w, style: const TextStyle(fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Kiểm tra lại'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Vẫn gửi duyệt'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _submitProof() async {
+    final integrity = await _storageService.verifyImageIntegrity(_storedImage);
+    final check = _validationHelper.evaluate(
+      memberName: _memberNameController.text,
+      selectedChallengeId: _selectedChallenge.id,
+      selectedChallengeTitle: _selectedChallenge.title,
+      storedImage: _storedImage,
+      imageIntegrity: integrity,
+      ocrResult: _ocrResult,
+    );
+
+    if (!mounted) return;
+
+    if (check.hasBlockingError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.danger,
+          content: Text(check.blockingError!),
         ),
       );
       return;
     }
 
+    if (check.hasWarnings) {
+      final shouldContinue = await _confirmWarningsDialog(check.warnings);
+      if (!shouldContinue || !mounted) return;
+    }
+
+    final memberName = _memberNameController.text.trim();
     final location = _locationController.text.trim();
     final userNote = _noteController.text.trim();
     final now = DateTime.now();
