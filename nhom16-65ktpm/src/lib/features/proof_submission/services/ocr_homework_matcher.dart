@@ -93,7 +93,7 @@ class OcrHomeworkMatcher {
   );
 
   static final RegExp _studentCountPattern = RegExp(
-    r'(?:sĩ số|lớp)[:\s]*(\d+)\s*(?:học sinh|em)?',
+    r'(?:sĩ số[:\s]*(\d+)\s*(?:học sinh|em)?|(\d+)\s*học sinh)',
     caseSensitive: false,
   );
 
@@ -185,7 +185,10 @@ class OcrHomeworkMatcher {
 
     final studentMatch = _studentCountPattern.firstMatch(text);
     if (studentMatch != null) {
-      metrics['si_so_lop'] = '${studentMatch.group(1)} học sinh';
+      final count = studentMatch.group(1) ?? studentMatch.group(2);
+      if (count != null) {
+        metrics['si_so_lop'] = '$count học sinh';
+      }
     }
 
     final distanceMatch = _distanceKmPattern.firstMatch(text);
