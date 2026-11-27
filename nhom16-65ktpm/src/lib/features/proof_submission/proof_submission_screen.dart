@@ -102,16 +102,22 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
   @override
   void initState() {
     super.initState();
-    final currentUser = AuthService.instance.currentUser;
-    if (currentUser != null && currentUser.name.isNotEmpty) {
-      _memberNameController.text = currentUser.name;
-    }
+    _syncCurrentUserName();
+    AuthService.instance.addListener(_syncCurrentUserName);
     _runSampleOcr(_selectedSample);
     _loadInitialData();
   }
 
+  void _syncCurrentUserName() {
+    final currentUser = AuthService.instance.currentUser;
+    if (currentUser != null && currentUser.name.isNotEmpty) {
+      _memberNameController.text = currentUser.name;
+    }
+  }
+
   @override
   void dispose() {
+    AuthService.instance.removeListener(_syncCurrentUserName);
     _memberNameController.dispose();
     _locationController.dispose();
     _noteController.dispose();
@@ -404,10 +410,14 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       if (userNote.isNotEmpty) userNote,
     ].join(' | ');
 
-    final rawOcrText = _ocrResult?.rawText ?? '';
-    final formattedOcrForAdmin = rawOcrText.isEmpty
+    final singleLineOcr = (_ocrResult?.rawText ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join(' • ');
+    final formattedOcrForAdmin = singleLineOcr.isEmpty
         ? aiHint
-        : '$aiHint\n$rawOcrText';
+        : '$aiHint $singleLineOcr';
 
     final imagePath =
         _storedImage?.savedPath ??
@@ -523,6 +533,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<ChallengeModel>(
+                  key: ValueKey(_selectedChallenge.id),
                   initialValue: _selectedChallenge,
                   isExpanded: true,
                   decoration: const InputDecoration(
@@ -602,6 +613,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<MockOcrSample>(
+                  key: ValueKey(_selectedSample.id),
                   initialValue: _selectedSample,
                   isExpanded: true,
                   decoration: const InputDecoration(
