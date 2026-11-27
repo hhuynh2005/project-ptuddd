@@ -56,14 +56,19 @@ class OcrScanResult {
 /// trên ảnh chụp minh chứng check-in.
 class MlKitOcrService {
   MlKitOcrService({
-    TextRecognitionScript script = TextRecognitionScript.latin,
+    this.script = TextRecognitionScript.latin,
     this.timeExtractor = const OcrTimeExtractor(),
     this.homeworkMatcher = const OcrHomeworkMatcher(),
-  }) : _textRecognizer = TextRecognizer(script: script);
+  });
 
-  final TextRecognizer _textRecognizer;
+  final TextRecognitionScript script;
   final OcrTimeExtractor timeExtractor;
   final OcrHomeworkMatcher homeworkMatcher;
+
+  TextRecognizer? _textRecognizer;
+
+  TextRecognizer get _recognizer =>
+      _textRecognizer ??= TextRecognizer(script: script);
 
   /// Nhận diện văn bản trực tiếp từ đường dẫn file ảnh bằng Google ML Kit.
   Future<OcrScanResult> recognizeFromImagePath(
@@ -73,7 +78,7 @@ class MlKitOcrService {
     int earlyDeadlineMinute = 0,
   }) async {
     final inputImage = InputImage.fromFilePath(imagePath);
-    final recognizedText = await _textRecognizer.processImage(inputImage);
+    final recognizedText = await _recognizer.processImage(inputImage);
     return analyzeText(
       recognizedText.text,
       targetChallengeId: targetChallengeId,
@@ -82,7 +87,7 @@ class MlKitOcrService {
     );
   }
 
-  /// Phân tích chi tiết văn bản OCR gồm cả giờ đồng hồ và chữ trên bài làm (Sprint 3 - Giai đoạn 3).
+  /// Phân tích chi tiết văn bản OCR gồm cả giờ đồng hồ và chữ trên bài làm (Sprint 3).
   OcrAnalysisDetail analyzeDetailedText(
     String rawText, {
     String? targetChallengeId,
@@ -195,8 +200,30 @@ class MlKitOcrService {
     );
   }
 
+  /// Tạo chuỗi tóm tắt gợi ý ngắn gọn dành cho màn hình Admin duyệt minh chứng (Sprint 3 - Giai đoạn 6).
+  String buildAdminReviewHint(OcrScanResult? result) {
+    if (result == null || !result.hasText) {
+      return '[AI OCR: Chưa đọc được chữ - cần kiểm tra ảnh thủ công]';
+    }
+
+    final detail = result.analysisDetail;
+    final score = detail?.confidenceScore ?? 0;
+    final verdict = score >= 80
+        ? 'Gợi ý Duyệt'
+        : (score >= 50 ? 'Khớp một phần' : 'Cần kiểm tra kỹ');
+
+    final parts = <String>[
+      'AI $score% ($verdict)',
+      if (result.extractedTime != null) 'Giờ: ${result.extractedTime}',
+      if (detail != null && detail.homeworkMetrics.isNotEmpty)
+        detail.homeworkMetrics.values.join(', '),
+    ];
+    return '[${parts.join(' • ')}]';
+  }
+
   /// Giải phóng tài nguyên ML Kit khi không còn sử dụng.
   Future<void> dispose() async {
-    await _textRecognizer.close();
+    await _textRecognizer?.close();
+    _textRecognizer = null;
   }
 }
