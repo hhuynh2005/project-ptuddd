@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
+
 import '../datasources/database_helper.dart';
 import '../models/challenge_model.dart';
 import '../models/fund_transaction_model.dart';
 import '../models/proof_model.dart';
+import '../services/proof_approval_credit_helper.dart';
 import 'challenge_repository.dart';
 import 'fund_transaction_repository.dart';
 import 'proof_repository.dart';
@@ -44,6 +47,12 @@ class ProofRepositoryImpl implements IProofRepository {
   @override
   Future<bool> approveProof(String proofId, {String? feedback}) =>
       _db.approveProof(proofId, adminFeedback: feedback);
+
+  Future<ApprovalCreditResult> approveProofAndCreditFund(
+    String proofId, {
+    String? feedback,
+  }) =>
+      _db.approveProofAndCreditFund(proofId, adminFeedback: feedback);
 
   @override
   Future<bool> rejectProof(String proofId, {required String reason}) =>
@@ -116,6 +125,14 @@ class FundRepository
   final IProofRepository proofRepo;
   final IFundTransactionRepository transactionRepo;
 
+  /// Bộ phát sự kiện giúp Dashboard / Sổ Quỹ tự động đồng bộ lại số dư
+  /// ngay khi có giao dịch Thu (duyệt minh chứng) hoặc Chi (giải ngân) mới.
+  final ValueNotifier<int> fundUpdateVersion = ValueNotifier<int>(0);
+
+  void _notifyFundChanged() {
+    fundUpdateVersion.value++;
+  }
+
   // ==============================
   // THỬ THÁCH VIỆC TỐT
   // ==============================
@@ -143,8 +160,97 @@ class FundRepository
   Future<int> submitProof(ProofModel proof) => proofRepo.submitProof(proof);
 
   @override
-  Future<bool> approveProof(String proofId, {String? feedback}) =>
-      proofRepo.approveProof(proofId, feedback: feedback);
+  Future<bool> approveProof(String proofId, {String? feedback}) async {
+    final approved = await proofRepo.approveProof(proofId, feedback: feedback);
+    if (approved) {
+      _notifyFundChanged();
+    }
+    return approved;
+  }
+
+  /// Duyệt minh chứng & tự động cộng tiền THU vào quỹ, trả về kết quả chi tiết
+  /// kèm giao dịch Thu vừa sinh và số dư mới nhất của quỹ.
+  Future<ApprovalCreditResult> approveProofAndCreditFund(
+    String proofId, {
+    String? feedback,
+  }) async {
+    if (proofRepo is ProofRepositoryImpl) {
+      final result = await (proofRepo as ProofRepositoryImpl)
+          .approveProofAndCreditFund(proofId, feedback: feedback);
+      if (result.approved) {
+        _notifyFundChanged();
+      }
+      return result;
+    }
+
+    // Luồng tương thích cho các Mock Repository trong kiểm thử đơn vị
+    final allProofs = await proofRepo.getProofs();
+    final matched = allProofs.where((p) => p.id == proofId).toList();
+    if (matched.isEmpty) {
+      return const ApprovalCreditResult(
+        approved: false,
+        status: ApprovalCreditStatus.notFound,
+        message: 'Không tìm thấy minh chứng cần phê duyệt.',
+      );
+    }
+
+    final proof = matched.first;
+    if (!proof.isPending) {
+      return const ApprovalCreditResult(
+        approved: false,
+        status: ApprovalCreditStatus.alreadyProcessed,
+        message: 'Minh chứng này đã được xử lý trước đó.',
+      );
+    }
+
+    if (proof.rewardAmount <= 0) {
+      return const ApprovalCreditResult(
+        approved: false,
+        status: ApprovalCreditStatus.invalidRewardAmount,
+        message: 'Số tiền thưởng của minh chứng phải lớn hơn 0.',
+      );
+    }
+
+    final existingTxs = await transactionRepo.getTransactions();
+    final alreadyCredited = existingTxs.any(
+      (tx) => tx.proofId == proof.id && tx.isIncome,
+    );
+    if (alreadyCredited) {
+      return const ApprovalCreditResult(
+        approved: false,
+        status: ApprovalCreditStatus.duplicateTransaction,
+        message: 'Minh chứng này đã được cộng tiền Thu vào quỹ trước đó.',
+      );
+    }
+
+    final approved = await proofRepo.approveProof(proofId, feedback: feedback);
+    if (!approved) {
+      return const ApprovalCreditResult(
+        approved: false,
+        status: ApprovalCreditStatus.alreadyProcessed,
+        message: 'Minh chứng này đã được xử lý trước đó.',
+      );
+    }
+
+    final challenge = await challengeRepo.getChallengeById(proof.challengeId);
+    final newTx = ProofApprovalCreditHelper.buildIncomeTransaction(
+      proof: proof,
+      challenge: challenge,
+      adminFeedback: feedback,
+    );
+    await transactionRepo.recordTransaction(newTx);
+    final newBalance = await transactionRepo.getBalance();
+    _notifyFundChanged();
+
+    return ApprovalCreditResult(
+      approved: true,
+      status: ApprovalCreditStatus.credited,
+      message:
+          'Đã duyệt minh chứng của ${proof.memberName} và tự động cộng quỹ thành công.',
+      transaction: newTx,
+      newBalance: newBalance,
+    );
+  }
 
   @override
   Future<bool> rejectProof(String proofId, {required String reason}) =>
@@ -158,8 +264,11 @@ class FundRepository
       transactionRepo.getTransactions();
 
   @override
-  Future<int> recordTransaction(FundTransactionModel tx) =>
-      transactionRepo.recordTransaction(tx);
+  Future<int> recordTransaction(FundTransactionModel tx) async {
+    final result = await transactionRepo.recordTransaction(tx);
+    _notifyFundChanged();
+    return result;
+  }
 
   @override
   Future<double> getTotalIncome() => transactionRepo.getTotalIncome();
