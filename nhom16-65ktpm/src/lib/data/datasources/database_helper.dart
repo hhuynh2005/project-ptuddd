@@ -19,12 +19,13 @@ class DatabaseHelper {
 
   static Database? _database;
   static const String _dbName = 'gooddeeds_fund.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   // Tên các bảng
   static const String tableChallenges = 'challenges';
   static const String tableProofs = 'proofs';
   static const String tableFundTransactions = 'fund_transactions';
+  static const String tableUsers = 'users';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -50,6 +51,7 @@ class DatabaseHelper {
           } catch (_) {}
         },
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       );
     } catch (e) {
       // Fallback an toàn cho môi trường test VM nếu chưa nạp driver
@@ -62,7 +64,7 @@ class DatabaseHelper {
     }
   }
 
-  /// Tạo cấu trúc 3 bảng: challenges, proofs, fund_transactions
+  /// Tạo cấu trúc 4 bảng: challenges, proofs, fund_transactions, users
   Future<void> _onCreate(Database db, int version) async {
     // 1. Bảng challenges
     await db.execute('''
@@ -113,8 +115,81 @@ class DatabaseHelper {
       )
     ''');
 
+    // 4. Bảng users
+    await _createUsersTable(db);
+
     // Chèn dữ liệu mẫu ban đầu (Seed Data)
     await _seedInitialData(db);
+    await _seedUsersData(db);
+  }
+
+  /// Tạo bảng users lưu trữ tài khoản người dùng và phân quyền
+  Future<void> _createUsersTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableUsers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        studentId TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL,
+        avatar TEXT,
+        password TEXT NOT NULL
+      )
+    ''');
+  }
+
+  /// Nâng cấp CSDL khi version tăng
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createUsersTable(db);
+      await _seedUsersData(db);
+    }
+  }
+
+  /// Nạp sẵn 4 tài khoản của 4 thành viên nhóm 16 vào SQLite
+  Future<void> _seedUsersData(Database db) async {
+    const defaultUsers = [
+      UserModel(
+        id: 'usr_01',
+        name: 'Nguyễn Văn Huỳnh',
+        studentId: '2351170599',
+        email: 'huynh@gooddeeds.vn',
+        role: 'admin',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_02',
+        name: 'Lê Anh Tuấn',
+        studentId: '2151060296',
+        email: 'latuan@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_03',
+        name: 'Nguyễn Trung Kiên',
+        studentId: '2251172394',
+        email: 'kien@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_04',
+        name: 'Trần Anh Tuấn',
+        studentId: '2351170629',
+        email: 'tatuan@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+    ];
+
+    for (final u in defaultUsers) {
+      await db.insert(
+        tableUsers,
+        u.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 
   /// Khởi tạo dữ liệu mẫu ban đầu cho chiến dịch
@@ -478,6 +553,72 @@ class DatabaseHelper {
     );
 
     return maps.map((map) => FundTransactionModel.fromMap(map)).toList();
+  }
+
+  // ==========================================
+  // 4. CRUD CHO BẢNG USERS (TÀI KHOẢN & PHÂN QUYỀN)
+  // ==========================================
+  Future<List<UserModel>> getAllUsers() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(tableUsers);
+    return maps.map((map) => UserModel.fromMap(map)).toList();
+  }
+
+  Future<UserModel?> getUserById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableUsers,
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return UserModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<UserModel?> authenticateUser(String account, String password) async {
+    final db = await database;
+    final cleanAccount = account.trim().toLowerCase();
+    final cleanPassword = password.trim();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableUsers,
+      where: 'LOWER(email) = ? OR studentId = ?',
+      whereArgs: [cleanAccount, cleanAccount],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    final user = UserModel.fromMap(maps.first);
+
+    // Xác thực mật khẩu: khớp mật khẩu trong CSDL, hoặc pass GoodDeeds@2026, hoặc pass 123
+    if (user.password == cleanPassword ||
+        cleanPassword == 'GoodDeeds@2026' ||
+        cleanPassword == '123') {
+      return user;
+    }
+    return null;
+  }
+
+  Future<int> insertUser(UserModel user) async {
+    final db = await database;
+    return await db.insert(
+      tableUsers,
+      user.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateUserPassword(String userId, String newPassword) async {
+    final db = await database;
+    return await db.update(
+      tableUsers,
+      {'password': newPassword},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
   }
 
   Future<void> close() async {
