@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../datasources/database_helper.dart';
 import '../models/challenge_model.dart';
 import '../models/fund_transaction_model.dart';
@@ -116,6 +117,14 @@ class FundRepository
   final IProofRepository proofRepo;
   final IFundTransactionRepository transactionRepo;
 
+  /// Bộ đếm phiên bản cập nhật quỹ để phát tín hiệu đồng bộ Realtime (Dashboard, Sổ Quỹ, Badge)
+  final ValueNotifier<int> fundUpdateVersion = ValueNotifier<int>(0);
+
+  /// Kích hoạt thông báo khi có biến động quỹ hoặc minh chứng
+  void notifyFundUpdated() {
+    fundUpdateVersion.value++;
+  }
+
   // ==============================
   // THỬ THÁCH VIỆC TỐT
   // ==============================
@@ -127,8 +136,11 @@ class FundRepository
       challengeRepo.getChallengeById(id);
 
   @override
-  Future<int> addChallenge(ChallengeModel challenge) =>
-      challengeRepo.addChallenge(challenge);
+  Future<int> addChallenge(ChallengeModel challenge) async {
+    final result = await challengeRepo.addChallenge(challenge);
+    if (result > 0) notifyFundUpdated();
+    return result;
+  }
 
   // ==============================
   // MINH CHỨNG & PHÊ DUYỆT
@@ -140,15 +152,25 @@ class FundRepository
   Future<List<ProofModel>> getPendingProofs() => proofRepo.getPendingProofs();
 
   @override
-  Future<int> submitProof(ProofModel proof) => proofRepo.submitProof(proof);
+  Future<int> submitProof(ProofModel proof) async {
+    final result = await proofRepo.submitProof(proof);
+    if (result > 0) notifyFundUpdated();
+    return result;
+  }
 
   @override
-  Future<bool> approveProof(String proofId, {String? feedback}) =>
-      proofRepo.approveProof(proofId, feedback: feedback);
+  Future<bool> approveProof(String proofId, {String? feedback}) async {
+    final result = await proofRepo.approveProof(proofId, feedback: feedback);
+    if (result) notifyFundUpdated();
+    return result;
+  }
 
   @override
-  Future<bool> rejectProof(String proofId, {required String reason}) =>
-      proofRepo.rejectProof(proofId, reason: reason);
+  Future<bool> rejectProof(String proofId, {required String reason}) async {
+    final result = await proofRepo.rejectProof(proofId, reason: reason);
+    if (result) notifyFundUpdated();
+    return result;
+  }
 
   // ==============================
   // SỔ QUỸ THU - CHI
@@ -158,8 +180,11 @@ class FundRepository
       transactionRepo.getTransactions();
 
   @override
-  Future<int> recordTransaction(FundTransactionModel tx) =>
-      transactionRepo.recordTransaction(tx);
+  Future<int> recordTransaction(FundTransactionModel tx) async {
+    final result = await transactionRepo.recordTransaction(tx);
+    if (result > 0) notifyFundUpdated();
+    return result;
+  }
 
   @override
   Future<double> getTotalIncome() => transactionRepo.getTotalIncome();

@@ -41,6 +41,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _fetchPendingCount();
+    _fundRepo.fundUpdateVersion.addListener(_onFundUpdated);
+  }
+
+  void _onFundUpdated() {
+    if (mounted) {
+      _fetchPendingCount();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fundRepo.fundUpdateVersion.removeListener(_onFundUpdated);
+    super.dispose();
   }
 
   Future<void> _fetchPendingCount() async {
