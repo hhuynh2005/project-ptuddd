@@ -48,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
       widget.onLoginSuccess();
     } else {
       setState(() =>
-          _errorMessage = 'Tài khoản hoặc mật khẩu không chính xác (Thử: 123)');
+          _errorMessage = 'Tài khoản hoặc mật khẩu không chính xác. Vui lòng thử lại.');
     }
   }
 
@@ -170,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: _isObscure,
                   decoration: InputDecoration(
                     labelText: 'Mật khẩu',
-                    hintText: 'Mặc định demo: 123',
+                    hintText: 'Nhập mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
                       icon: Icon(_isObscure
