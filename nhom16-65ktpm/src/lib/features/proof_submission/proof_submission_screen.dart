@@ -20,9 +20,8 @@ import 'widgets/proof_image_preview_card.dart';
 import 'widgets/submitted_proof_history_list.dart';
 
 /// Màn hình Chụp, Xem trước & Nộp minh chứng thử thách (Sprint 2 - Sprint 3).
-/// Tích hợp lưu trữ ảnh cục bộ vào bộ nhớ máy, xem trước phóng to ảnh,
-/// phân tích chuyên sâu AI OCR, kiểm tra cảnh báo sơ bộ trước khi gửi
-/// và lưu hồ sơ minh chứng vào cơ sở dữ liệu.
+/// Tích hợp hoàn chỉnh luồng: Thành viên chụp ảnh ➔ AI OCR phân tích giờ & bài làm
+/// ➔ Cảnh báo sơ bộ ➔ Gửi kèm gợi ý AI sang hàng đợi Admin duyệt.
 class ProofSubmissionScreen extends StatefulWidget {
   const ProofSubmissionScreen({super.key});
 
@@ -134,6 +133,26 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       });
     } catch (_) {
       // Nếu chạy trên nền tảng chưa khởi tạo SQLite (Web/Desktop), dùng danh sách bộ nhớ tạm.
+    }
+  }
+
+  Future<void> _refreshSubmittedProofs() async {
+    final stats = await _storageService.getStorageStats();
+    try {
+      final dbProofs = await _proofRepository.getProofs();
+      if (!mounted) return;
+      setState(() {
+        _submittedProofs = dbProofs;
+        _storageStats = stats;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã đồng bộ trạng thái minh chứng mới nhất từ hệ thống.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _storageStats = stats);
     }
   }
 
@@ -311,7 +330,10 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        '• ',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       Expanded(
                         child: Text(w, style: const TextStyle(fontSize: 13)),
                       ),
@@ -368,12 +390,19 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     final memberName = _memberNameController.text.trim();
     final location = _locationController.text.trim();
     final userNote = _noteController.text.trim();
+    final aiHint = _ocrService.buildAdminReviewHint(_ocrResult);
     final now = DateTime.now();
 
     final combinedNote = [
+      aiHint,
       if (location.isNotEmpty) 'Vị trí: $location',
       if (userNote.isNotEmpty) userNote,
     ].join(' | ');
+
+    final rawOcrText = _ocrResult?.rawText ?? '';
+    final formattedOcrForAdmin = rawOcrText.isEmpty
+        ? aiHint
+        : '$aiHint\n$rawOcrText';
 
     final imagePath =
         _storedImage?.savedPath ??
@@ -385,7 +414,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       challengeTitle: _selectedChallenge.title,
       memberName: memberName,
       imagePath: imagePath,
-      ocrExtractedText: _ocrResult?.rawText ?? '',
+      ocrExtractedText: formattedOcrForAdmin,
       detectedTime: _ocrResult?.extractedTime,
       submittedAt: _capturedAt ?? now,
       status: ProofStatus.pending,
@@ -420,7 +449,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       SnackBar(
         backgroundColor: AppColors.success,
         content: Text(
-          'Đã lưu ảnh và gửi minh chứng "${_selectedChallenge.title}" thành công!',
+          'Đã lưu ảnh và chuyển minh chứng "${_selectedChallenge.title}" sang hàng đợi Admin duyệt!',
         ),
       ),
     );
@@ -440,34 +469,40 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Header tóm tắt bộ nhớ lưu trữ ảnh minh chứng trên thiết bị
-        if (stats != null)
-          Card(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.sd_storage_outlined,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Bộ nhớ ảnh cục bộ: ${stats.imageCount} tệp (${stats.formattedTotalSize})',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+        // Header tóm tắt bộ nhớ lưu trữ ảnh minh chứng & nút đồng bộ trạng thái duyệt
+        Card(
+          color: AppColors.primary.withValues(alpha: 0.08),
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sd_storage_outlined,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    stats != null
+                        ? 'Bộ nhớ ảnh cục bộ: ${stats.imageCount} tệp (${stats.formattedTotalSize})'
+                        : 'Đang kiểm tra bộ nhớ lưu trữ ảnh...',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
                   ),
-                ],
-              ),
+                ),
+                IconButton(
+                  onPressed: _isProcessing ? null : _refreshSubmittedProofs,
+                  icon: const Icon(Icons.sync, size: 20, color: AppColors.primary),
+                  tooltip: 'Đồng bộ trạng thái Admin duyệt',
+                ),
+              ],
             ),
           ),
-        if (stats != null) const SizedBox(height: 12),
+        ),
+        const SizedBox(height: 12),
 
         // 1. Chọn thử thách & Thông tin thành viên nộp
         Card(
