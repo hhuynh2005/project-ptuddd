@@ -6,6 +6,7 @@ import '../../core/database/database_factory_setup.dart';
 import '../models/challenge_model.dart';
 import '../models/fund_transaction_model.dart';
 import '../models/proof_model.dart';
+import '../models/user_model.dart';
 import '../services/proof_approval_credit_helper.dart';
 
 /// DatabaseHelper - Quản lý lưu trữ SQLite đa nền tảng (Cross-Platform Storage)
