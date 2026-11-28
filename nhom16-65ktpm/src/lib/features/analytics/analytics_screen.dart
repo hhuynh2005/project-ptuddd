@@ -19,7 +19,11 @@ import 'widgets/fund_line_chart.dart';
 // Giai đoạn 4 - C9: toàn bộ màn hình (3 thẻ, tiến độ mục tiêu, 3 biểu đồ)
 // dùng dữ liệu thật từ FundRepository.getTransactions; mục tiêu quỹ đọc
 // từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard;
-// xuất báo cáo CSV và PDF qua nút tải xuống trên AppBar.
+// nút Xuất báo cáo ở thân màn hình bật popup ngay tại nút, trong popup
+// là 2 nút lựa chọn bo tròn phân biệt màu (Xuất CSV xanh lá, Xuất PDF đỏ).
+// Bổ sung: tự nạp lại số liệu khi quỹ thay đổi ở màn hình khác
+// (duyệt minh chứng, giải ngân...) qua FundRepository.fundUpdateVersion;
+// kéo xuống đầu danh sách để làm mới thủ công (RefreshIndicator).
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -38,6 +42,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     super.initState();
     _transactionsFuture = FundRepository.instance.getTransactions();
     _loadGoal();
+    FundRepository.instance.fundUpdateVersion.addListener(_onFundChanged);
+  }
+
+  @override
+  void dispose() {
+    FundRepository.instance.fundUpdateVersion.removeListener(_onFundChanged);
+    super.dispose();
+  }
+
+  /// Quỹ vừa thay đổi ở màn hình khác (duyệt minh chứng, ghi giao
+  /// dịch...) — nạp lại số liệu để Thống kê luôn khớp Sổ Quỹ,
+  /// cùng cơ chế đồng bộ realtime mà Dashboard đang dùng.
+  void _onFundChanged() {
+    if (!mounted) return;
+    _reload();
   }
 
   /// Đọc mục tiêu quỹ đã lưu trong Cài đặt (nếu chưa lưu thì giữ 100 triệu).
@@ -60,6 +79,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (changed == true) {
       _loadGoal();
     }
+  }
+
+  /// Một nút lựa chọn trong popup Xuất báo cáo: pill bo tròn có màu
+  /// riêng cho từng định dạng (CSV xanh lá, PDF đỏ) kèm icon và chữ.
+  Widget _exportChoiceButton(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
   }
 
   /// Xuất Sổ Quỹ ra file CSV (Giai đoạn 4 - C8).
@@ -142,6 +181,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     });
   }
 
+  /// Kéo để làm mới: nạp lại giao dịch và chờ tải xong mới tắt
+  /// vòng xoay của RefreshIndicator.
+  Future<void> _onRefresh() async {
+    _reload();
+    await _transactionsFuture;
+  }
+
   String _money(double v) =>
       '${NumberFormat.decimalPattern('vi_VN').format(v.round())} đ';
 
@@ -177,18 +223,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       appBar: AppBar(
         title: const Text('Thống kê quỹ từ thiện'),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.download),
-            tooltip: 'Xuất báo cáo',
-            onSelected: (value) {
-              if (value == 'csv') _exportCsv();
-              if (value == 'pdf') _exportPdf();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'csv', child: Text('Xuất CSV')),
-              PopupMenuItem(value: 'pdf', child: Text('Xuất PDF')),
-            ],
-          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Cài đặt',
@@ -259,68 +293,141 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           final balance = service.balance(txs);
           final goalProgress = (balance / _fundGoal).clamp(0.0, 1.0);
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                children: [
-                  _summaryCard(
-                    'Tổng thu',
-                    income,
-                    Colors.green,
-                    Icons.arrow_downward,
+          return RefreshIndicator(
+            onRefresh: _onRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: [
+                Row(
+                  children: [
+                    _summaryCard(
+                      'Tổng thu',
+                      income,
+                      Colors.green,
+                      Icons.arrow_downward,
+                    ),
+                    _summaryCard(
+                      'Tổng chi',
+                      expense,
+                      Colors.red,
+                      Icons.arrow_upward,
+                    ),
+                    _summaryCard(
+                      'Số dư',
+                      balance,
+                      Colors.blue,
+                      Icons.account_balance_wallet,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tiến độ mục tiêu: ${_money(balance)} / ${_money(_fundGoal)}',
+                ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: goalProgress),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: PopupMenuButton<String>(
+                    position: PopupMenuPosition.under,
+                    tooltip: 'Xuất báo cáo',
+                    onSelected: (value) {
+                      if (value == 'csv') _exportCsv();
+                      if (value == 'pdf') _exportPdf();
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'csv',
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: _exportChoiceButton(
+                          Icons.table_chart,
+                          'Xuất CSV',
+                          Colors.green.shade700,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'pdf',
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: _exportChoiceButton(
+                          Icons.picture_as_pdf,
+                          'Xuất PDF',
+                          Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 24,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.download,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Xuất báo cáo',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  _summaryCard(
-                    'Tổng chi',
-                    expense,
-                    Colors.red,
-                    Icons.arrow_upward,
-                  ),
-                  _summaryCard(
-                    'Số dư',
-                    balance,
-                    Colors.blue,
-                    Icons.account_balance_wallet,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Tiến độ mục tiêu: ${_money(balance)} / ${_money(_fundGoal)}',
-              ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(value: goalProgress),
-              const SizedBox(height: 24),
-              const Text(
-                'Biến động số dư (7 ngày)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              FundLineChart(points: service.balanceByDay(txs)),
-              const SizedBox(height: 24),
-              const Text(
-                'Thu / chi theo tháng',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              CashflowBarChart(points: service.incomeExpenseByMonth(txs)),
-              const SizedBox(height: 8),
-              const Row(
-                children: [
-                  Icon(Icons.square, color: Colors.green, size: 14),
-                  Text(' Thu   '),
-                  Icon(Icons.square, color: Colors.red, size: 14),
-                  Text(' Chi'),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Đóng góp theo danh mục',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ChallengePieChart(shares: service.contributionByChallenge(txs)),
-            ],
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Biến động số dư (7 ngày)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                FundLineChart(points: service.balanceByDay(txs)),
+                const SizedBox(height: 24),
+                const Text(
+                  'Thu / chi theo tháng',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                CashflowBarChart(points: service.incomeExpenseByMonth(txs)),
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(Icons.square, color: Colors.green, size: 14),
+                    Text(' Thu   '),
+                    Icon(Icons.square, color: Colors.red, size: 14),
+                    Text(' Chi'),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Đóng góp theo danh mục',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ChallengePieChart(shares: service.contributionByChallenge(txs)),
+              ],
+            ),
           );
         },
       ),
