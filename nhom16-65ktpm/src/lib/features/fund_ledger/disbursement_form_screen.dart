@@ -247,7 +247,10 @@ class _DisbursementFormScreenState extends State<DisbursementFormScreen> {
         title: const Text('Lập Phiếu Chi Giải Ngân'),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
@@ -503,7 +506,8 @@ class _DisbursementFormScreenState extends State<DisbursementFormScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildBalanceSummaryCard() {

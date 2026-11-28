@@ -481,7 +481,10 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
       result?.analysisDetail?.suggestedChallengeId,
     );
 
-    return ListView(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // Header tóm tắt bộ nhớ lưu trữ ảnh minh chứng & nút đồng bộ trạng thái duyệt
@@ -689,6 +692,7 @@ class _ProofSubmissionScreenState extends State<ProofSubmissionScreen> {
         // 6. Danh sách minh chứng đã lưu trên máy
         SubmittedProofHistoryList(proofs: _submittedProofs),
       ],
-    );
+    ),
+  );
   }
 }
