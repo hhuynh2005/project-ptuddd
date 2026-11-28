@@ -21,6 +21,8 @@ import 'widgets/fund_line_chart.dart';
 // từ Cài đặt (SharedPreferences), mặc định 100.000.000 đ khớp Dashboard;
 // nút Xuất báo cáo ở thân màn hình bật popup ngay tại nút, trong popup
 // là 2 nút lựa chọn bo tròn phân biệt màu (Xuất CSV xanh lá, Xuất PDF đỏ).
+// Bổ sung: tự nạp lại số liệu khi quỹ thay đổi ở màn hình khác
+// (duyệt minh chứng, giải ngân...) qua FundRepository.fundUpdateVersion.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
@@ -39,6 +41,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     super.initState();
     _transactionsFuture = FundRepository.instance.getTransactions();
     _loadGoal();
+    FundRepository.instance.fundUpdateVersion.addListener(_onFundChanged);
+  }
+
+  @override
+  void dispose() {
+    FundRepository.instance.fundUpdateVersion.removeListener(_onFundChanged);
+    super.dispose();
+  }
+
+  /// Quỹ vừa thay đổi ở màn hình khác (duyệt minh chứng, ghi giao
+  /// dịch...) — nạp lại số liệu để Thống kê luôn khớp Sổ Quỹ,
+  /// cùng cơ chế đồng bộ realtime mà Dashboard đang dùng.
+  void _onFundChanged() {
+    if (!mounted) return;
+    _reload();
   }
 
   /// Đọc mục tiêu quỹ đã lưu trong Cài đặt (nếu chưa lưu thì giữ 100 triệu).
