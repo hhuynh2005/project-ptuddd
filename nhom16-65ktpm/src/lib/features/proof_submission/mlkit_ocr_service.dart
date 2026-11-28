@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 import 'models/ocr_analysis_detail.dart';
+import 'models/ocr_performance_metrics.dart';
 import 'services/ocr_homework_matcher.dart';
+import 'services/ocr_recognition_cache.dart';
 import 'services/ocr_time_extractor.dart';
 
 /// Kết quả bóc tách văn bản và xác thực sơ bộ từ ảnh minh chứng.
@@ -15,6 +19,7 @@ class OcrScanResult {
     required this.detectedKeywords,
     required this.validationMessage,
     this.analysisDetail,
+    this.performanceMetrics,
   });
 
   /// Toàn bộ văn bản nhận diện được trên ảnh.
@@ -41,6 +46,9 @@ class OcrScanResult {
   /// Chi tiết phân tích chuyên sâu cả giờ đồng hồ và nội dung chữ trên bài làm (Sprint 3).
   final OcrAnalysisDetail? analysisDetail;
 
+  /// Chỉ số tốc độ xử lý và trạng thái trúng bộ nhớ đệm AI OCR (Sprint 4 - Giai đoạn 1).
+  final OcrPerformanceMetrics? performanceMetrics;
+
   bool get hasText => rawText.trim().isNotEmpty;
 
   /// Nhãn tóm tắt trạng thái kiểm tra sơ bộ từ AI OCR.
@@ -53,38 +61,95 @@ class OcrScanResult {
 }
 
 /// Dịch vụ AI OCR sử dụng Google ML Kit Text Recognition để đọc chữ và thời gian
-/// trên ảnh chụp minh chứng check-in.
+/// trên ảnh chụp minh chứng check-in, tích hợp LRU Cache và Timeout bảo vệ hiệu năng.
 class MlKitOcrService {
   MlKitOcrService({
     this.script = TextRecognitionScript.latin,
     this.timeExtractor = const OcrTimeExtractor(),
     this.homeworkMatcher = const OcrHomeworkMatcher(),
-  });
+    OcrRecognitionCache? recognitionCache,
+    this.recognitionTimeout = const Duration(seconds: 8),
+  }) : recognitionCache = recognitionCache ?? OcrRecognitionCache();
 
   final TextRecognitionScript script;
   final OcrTimeExtractor timeExtractor;
   final OcrHomeworkMatcher homeworkMatcher;
+  final OcrRecognitionCache recognitionCache;
+  final Duration recognitionTimeout;
 
   TextRecognizer? _textRecognizer;
 
   TextRecognizer get _recognizer =>
       _textRecognizer ??= TextRecognizer(script: script);
 
-  /// Nhận diện văn bản trực tiếp từ đường dẫn file ảnh bằng Google ML Kit.
+  /// Nhận diện văn bản trực tiếp từ đường dẫn file ảnh bằng Google ML Kit,
+  /// ưu tiên đọc từ bộ nhớ đệm LRU nếu ảnh đã được quét trước đó.
   Future<OcrScanResult> recognizeFromImagePath(
     String imagePath, {
     String? targetChallengeId,
     int earlyDeadlineHour = 6,
     int earlyDeadlineMinute = 0,
+    bool forceRefresh = false,
   }) async {
-    final inputImage = InputImage.fromFilePath(imagePath);
-    final recognizedText = await _recognizer.processImage(inputImage);
-    return analyzeText(
-      recognizedText.text,
-      targetChallengeId: targetChallengeId,
-      earlyDeadlineHour: earlyDeadlineHour,
-      earlyDeadlineMinute: earlyDeadlineMinute,
-    );
+    final stopwatch = Stopwatch()..start();
+    final cacheKey = await recognitionCache.buildImageCacheKey(imagePath);
+
+    if (!forceRefresh) {
+      final cachedText = recognitionCache.get(cacheKey);
+      if (cachedText != null) {
+        stopwatch.stop();
+        return analyzeText(
+          cachedText,
+          targetChallengeId: targetChallengeId,
+          earlyDeadlineHour: earlyDeadlineHour,
+          earlyDeadlineMinute: earlyDeadlineMinute,
+          performanceMetrics: OcrPerformanceMetrics(
+            processingDurationMs: stopwatch.elapsedMilliseconds,
+            isFromCache: true,
+          ),
+        );
+      }
+    }
+
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final recognizedText = await _recognizer
+          .processImage(inputImage)
+          .timeout(recognitionTimeout);
+      recognitionCache.put(cacheKey, recognizedText.text);
+      stopwatch.stop();
+
+      return analyzeText(
+        recognizedText.text,
+        targetChallengeId: targetChallengeId,
+        earlyDeadlineHour: earlyDeadlineHour,
+        earlyDeadlineMinute: earlyDeadlineMinute,
+        performanceMetrics: OcrPerformanceMetrics(
+          processingDurationMs: stopwatch.elapsedMilliseconds,
+          isFromCache: false,
+        ),
+      );
+    } on TimeoutException {
+      stopwatch.stop();
+      return OcrScanResult(
+        rawText: '',
+        extractedTime: null,
+        isEarlyWakeUpValid: false,
+        detectedKeywords: const [],
+        validationMessage:
+            'Quá thời gian xử lý ảnh (${recognitionTimeout.inSeconds}s). Hãy chụp ảnh gần hơn hoặc giảm độ phức tạp nền.',
+        performanceMetrics: OcrPerformanceMetrics(
+          processingDurationMs: stopwatch.elapsedMilliseconds,
+          isTimedOut: true,
+        ),
+      );
+    }
+  }
+
+  /// Xóa kết quả lưu đệm của một tệp ảnh cụ thể khi người dùng chụp lại hoặc xóa ảnh.
+  Future<void> invalidateImageCache(String imagePath) async {
+    final key = await recognitionCache.buildImageCacheKey(imagePath);
+    recognitionCache.invalidate(key);
   }
 
   /// Phân tích chi tiết văn bản OCR gồm cả giờ đồng hồ và chữ trên bài làm (Sprint 3).
@@ -174,7 +239,9 @@ class MlKitOcrService {
     String? targetChallengeId,
     int earlyDeadlineHour = 6,
     int earlyDeadlineMinute = 0,
+    OcrPerformanceMetrics? performanceMetrics,
   }) {
+    final stopwatch = Stopwatch()..start();
     final detail = analyzeDetailedText(
       rawText,
       targetChallengeId: targetChallengeId,
@@ -187,6 +254,7 @@ class MlKitOcrService {
       earlyDeadlineHour: earlyDeadlineHour,
       earlyDeadlineMinute: earlyDeadlineMinute,
     );
+    stopwatch.stop();
 
     return OcrScanResult(
       rawText: detail.rawText,
@@ -197,6 +265,11 @@ class MlKitOcrService {
       detectedKeywords: detail.matchedKeywords,
       validationMessage: detail.summaryMessage,
       analysisDetail: detail,
+      performanceMetrics:
+          performanceMetrics ??
+          OcrPerformanceMetrics(
+            processingDurationMs: stopwatch.elapsedMilliseconds,
+          ),
     );
   }
 
@@ -221,8 +294,9 @@ class MlKitOcrService {
     return '[${parts.join(' • ')}]';
   }
 
-  /// Giải phóng tài nguyên ML Kit khi không còn sử dụng.
+  /// Giải phóng tài nguyên ML Kit và bộ nhớ đệm khi không còn sử dụng.
   Future<void> dispose() async {
+    recognitionCache.clear();
     await _textRecognizer?.close();
     _textRecognizer = null;
   }
