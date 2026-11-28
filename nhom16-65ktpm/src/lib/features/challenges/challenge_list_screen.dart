@@ -95,15 +95,31 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
   }
 
   List<ChallengeModel> get _filteredChallenges {
+    final queryTrimmed = _searchQuery.trim().toLowerCase();
+    final keywords = queryTrimmed.isEmpty
+        ? const <String>[]
+        : queryTrimmed
+            .split(RegExp(r'\s+'))
+            .where((k) => k.isNotEmpty)
+            .toList();
+
     return _challenges.where((c) {
       final matchCategory =
           _selectedCategory == 'Tất cả' || c.category == _selectedCategory;
-      final q = _searchQuery.trim().toLowerCase();
-      final matchSearch = q.isEmpty ||
-          c.title.toLowerCase().contains(q) ||
-          c.description.toLowerCase().contains(q) ||
-          c.category.toLowerCase().contains(q);
-      return matchCategory && matchSearch;
+      if (!matchCategory) return false;
+      if (keywords.isEmpty) return true;
+
+      final titleLower = c.title.toLowerCase();
+      final descLower = c.description.toLowerCase();
+      final catLower = c.category.toLowerCase();
+      final targetLower = c.target.toLowerCase();
+
+      // Tất cả từ khóa tách biệt đều được khớp linh hoạt
+      return keywords.every((kw) =>
+          titleLower.contains(kw) ||
+          descLower.contains(kw) ||
+          catLower.contains(kw) ||
+          targetLower.contains(kw));
     }).toList();
   }
 
@@ -205,16 +221,19 @@ class _ChallengeListScreenState extends State<ChallengeListScreen> {
           // 2. THANH TÌM KIẾM
           TextField(
             controller: _searchController,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
             onChanged: (val) => setState(() => _searchQuery = val),
             decoration: InputDecoration(
               hintText: 'Tìm thử thách việc tốt...',
               prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isNotEmpty
+              suffixIcon: _searchQuery.trim().isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear_rounded),
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _searchQuery = '');
+                        FocusScope.of(context).unfocus();
                       },
                     )
                   : null,
