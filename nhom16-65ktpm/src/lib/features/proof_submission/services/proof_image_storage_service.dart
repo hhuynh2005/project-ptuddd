@@ -26,7 +26,21 @@ class StoredProofImage {
   final DateTime savedAt;
 
   /// Hiển thị dung lượng tệp dễ đọc (KB / MB).
-  String get formattedSize => ProofImageStorageService.formatBytes(fileSizeBytes);
+  String get formattedSize =>
+      ProofImageStorageService.formatBytes(fileSizeBytes);
+}
+
+/// Kết quả kiểm tra tính toàn vẹn và dung lượng của tệp ảnh lưu cục bộ (Sprint 3 - Giai đoạn 5).
+class ImageIntegrityResult {
+  const ImageIntegrityResult({
+    required this.isValid,
+    this.message,
+    this.warningMessage,
+  });
+
+  final bool isValid;
+  final String? message;
+  final String? warningMessage;
 }
 
 /// Thống kê trạng thái thư mục lưu trữ ảnh minh chứng trên bộ nhớ thiết bị.
@@ -45,11 +59,13 @@ class ProofStorageStats {
       ProofImageStorageService.formatBytes(totalSizeBytes);
 }
 
-/// Dịch vụ quản lý lưu trữ tệp ảnh minh chứng cục bộ an toàn (Sprint 2).
+/// Dịch vụ quản lý lưu trữ tệp ảnh minh chứng cục bộ an toàn (Sprint 2 - Sprint 3).
 class ProofImageStorageService {
   const ProofImageStorageService();
 
   static const String _proofFolderName = 'proof_images';
+  static const int minRecommendedImageBytes = 2 * 1024; // 2 KB
+  static const int maxAllowedImageBytes = 15 * 1024 * 1024; // 15 MB
 
   static String formatBytes(int bytes) {
     if (bytes <= 0) return '0 KB';
@@ -124,6 +140,50 @@ class ProofImageStorageService {
       fileSizeBytes: sizeBytes,
       savedAt: now,
     );
+  }
+
+  /// Kiểm tra tính hợp lệ của tệp ảnh minh chứng trước khi gửi hồ sơ (Sprint 3 - Giai đoạn 5).
+  Future<ImageIntegrityResult> verifyImageIntegrity(
+    StoredProofImage? storedImage,
+  ) async {
+    if (storedImage == null || kIsWeb) {
+      return const ImageIntegrityResult(isValid: true);
+    }
+
+    final file = File(storedImage.savedPath);
+    if (!await file.exists()) {
+      return const ImageIntegrityResult(
+        isValid: false,
+        message:
+            'Không tìm thấy tệp ảnh minh chứng trong bộ nhớ máy. Vui lòng chụp hoặc chọn lại ảnh.',
+      );
+    }
+
+    final length = await file.length();
+    if (length <= 0) {
+      return const ImageIntegrityResult(
+        isValid: false,
+        message: 'Tệp ảnh minh chứng bị rỗng (0 KB). Vui lòng chụp lại ảnh.',
+      );
+    }
+
+    if (length > maxAllowedImageBytes) {
+      return ImageIntegrityResult(
+        isValid: false,
+        message:
+            'Dung lượng ảnh (${formatBytes(length)}) vượt quá giới hạn 15 MB.',
+      );
+    }
+
+    if (length < minRecommendedImageBytes) {
+      return ImageIntegrityResult(
+        isValid: true,
+        warningMessage:
+            'Dung lượng tệp ảnh rất nhỏ (${formatBytes(length)}), ảnh có thể bị mờ hoặc độ phân giải thấp.',
+      );
+    }
+
+    return const ImageIntegrityResult(isValid: true);
   }
 
   /// Thống kê số lượng và tổng dung lượng các tệp ảnh minh chứng đang lưu trong bộ nhớ máy.
