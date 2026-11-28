@@ -82,6 +82,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    _fundRepo.fundUpdateVersion.addListener(_onFundUpdated);
+  }
+
+  void _onFundUpdated() {
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fundRepo.fundUpdateVersion.removeListener(_onFundUpdated);
+    super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
