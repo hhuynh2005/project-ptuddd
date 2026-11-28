@@ -25,6 +25,8 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
   final ScrollController _scrollController = ScrollController();
   final QaAssistantService _qaService = QaAssistantService.instance;
 
+  bool _isTyping = false;
+
   final List<Map<String, dynamic>> _messages = [
     {
       'isUser': false,
@@ -35,31 +37,37 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
 
   void _sendMessage([String? prompt]) {
     final text = prompt ?? _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isTyping) return;
+
+    // Hạ bàn phím để thoáng màn hình
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _messages.add({'isUser': true, 'text': text});
       if (prompt == null) _controller.clear();
+      _isTyping = true;
     });
 
-    final reply = _qaService.answerQuestion(text);
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _messages.add({'isUser': false, 'text': reply});
-        });
-        _scrollToBottom();
-      }
-    });
     _scrollToBottom();
+
+    // Giả lập độ trễ tra cứu tri thức AI sinh động (350ms)
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final reply = _qaService.answerQuestion(text);
+      setState(() {
+        _isTyping = false;
+        _messages.add({'isUser': false, 'text': reply});
+      });
+      _scrollToBottom();
+    });
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -79,7 +87,7 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: MediaQuery.of(context).size.height * 0.78,
       margin: EdgeInsets.only(bottom: bottomInset),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
@@ -94,7 +102,7 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
       ),
       child: Column(
         children: [
-          // Header Drag Handle
+          // Thanh kéo modal handle
           const SizedBox(height: 10),
           Container(
             width: 40,
@@ -106,7 +114,7 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
           ),
           const SizedBox(height: 12),
 
-          // Header Title
+          // Header Tiêu đề
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -156,8 +164,46 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _messages.length,
+              itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
+                // Bong bóng đang trả lời
+                if (_isTyping && index == _messages.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Trợ lý đang tra cứu...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 final m = _messages[index];
                 final isUser = m['isUser'] as bool;
                 return Align(
@@ -218,7 +264,7 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: _qaService.quickPrompts.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final prompt = _qaService.quickPrompts[index];
                 return ActionChip(
@@ -277,7 +323,7 @@ class _ChatbotSheetState extends State<ChatbotSheet> {
                   child: IconButton(
                     icon: const Icon(Icons.send_rounded,
                         color: Colors.white, size: 20),
-                    onPressed: _sendMessage,
+                    onPressed: () => _sendMessage(),
                   ),
                 ),
               ],
