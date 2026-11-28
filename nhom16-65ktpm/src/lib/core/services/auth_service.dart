@@ -72,9 +72,7 @@ class AuthService extends ChangeNotifier {
       if ((acc.email.toLowerCase() == cleanInput ||
               acc.studentId == cleanInput ||
               acc.name.toLowerCase().contains(cleanInput)) &&
-          (acc.password == cleanPassword ||
-              cleanPassword == 'GoodDeeds@2026' ||
-              cleanPassword == '123')) {
+          acc.password == cleanPassword) {
         _currentUser = acc;
         notifyListeners();
         return true;
