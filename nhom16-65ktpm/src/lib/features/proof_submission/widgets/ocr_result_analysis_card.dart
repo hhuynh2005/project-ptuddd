@@ -166,6 +166,20 @@ class OcrResultAnalysisCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
+                if (result.performanceMetrics != null)
+                  Chip(
+                    avatar: Icon(
+                      Icons.bolt_rounded,
+                      size: 16,
+                      color: result.performanceMetrics!.isOptimal
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
+                    label: Text(
+                      result.performanceMetrics!.speedBadgeLabel,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
               ],
             ),
 
