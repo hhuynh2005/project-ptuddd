@@ -6,6 +6,7 @@ import 'package:gooddeeds_fund/data/repositories/challenge_repository.dart';
 import 'package:gooddeeds_fund/data/repositories/fund_repository.dart';
 import 'package:gooddeeds_fund/data/repositories/fund_transaction_repository.dart';
 import 'package:gooddeeds_fund/data/repositories/proof_repository.dart';
+import 'package:gooddeeds_fund/data/services/proof_approval_credit_helper.dart';
 
 /// Mock Challenge Repository phục vụ unit test độc lập
 class MockChallengeRepository implements IChallengeRepository {
@@ -286,6 +287,108 @@ void main() {
       final onlyExpense = await fundRepository.filterTransactions(type: TransactionType.chi);
       expect(onlyExpense.length, 1);
       expect(onlyExpense.first.type, TransactionType.chi);
+    });
+
+    test('5. Duyệt & tự động cộng quỹ trên MockRepository đồng bộ đúng category từ challenge', () async {
+      const challenge = ChallengeModel(
+        id: 'ch_mock_01',
+        title: 'Chạy bộ 5km',
+        description: 'Chụp ảnh Strava 5km',
+        rewardAmount: 30000.0,
+        category: 'Sức khỏe',
+        icon: 'directions_run',
+      );
+      await fundRepository.addChallenge(challenge);
+
+      final proof = ProofModel(
+        id: 'p_mock_01',
+        challengeId: challenge.id,
+        challengeTitle: challenge.title,
+        memberName: 'Lê Anh Tuấn',
+        imagePath: '/images/mock_01.jpg',
+        ocrExtractedText: '5.02 km',
+        submittedAt: DateTime(2026, 11, 28, 6, 0),
+        rewardAmount: 30000.0,
+      );
+      await fundRepository.submitProof(proof);
+
+      final versionBefore = fundRepository.fundUpdateVersion.value;
+      final result = await fundRepository.approveProofAndCreditFund(
+        proof.id,
+        feedback: 'Đạt chuẩn 5km',
+      );
+
+      expect(result.approved, isTrue);
+      expect(result.status, ApprovalCreditStatus.credited);
+      expect(result.transaction, isNotNull);
+      expect(result.transaction!.category, 'Sức khỏe');
+      expect(result.transaction!.amount, 30000.0);
+      expect(result.newBalance, 30000.0);
+      expect(await fundRepository.getBalance(), 30000.0);
+      expect(fundRepository.fundUpdateVersion.value, versionBefore + 1);
+    });
+
+    test('6. Duyệt trên MockRepository chặn minh chứng đã từ chối, thưởng <= 0 và chống cộng trùng', () async {
+      final rejectedProof = ProofModel(
+        id: 'p_mock_rejected',
+        challengeId: 'ch_1',
+        challengeTitle: 'Dậy sớm',
+        memberName: 'Lê Anh Tuấn',
+        imagePath: '/images/r.jpg',
+        ocrExtractedText: '07:00 AM',
+        submittedAt: DateTime(2026, 11, 28, 7, 0),
+        status: ProofStatus.rejected,
+        rewardAmount: 20000.0,
+      );
+      final zeroRewardProof = ProofModel(
+        id: 'p_mock_zero',
+        challengeId: 'ch_1',
+        challengeTitle: 'Dậy sớm',
+        memberName: 'Lê Anh Tuấn',
+        imagePath: '/images/z.jpg',
+        ocrExtractedText: '05:45 AM',
+        submittedAt: DateTime(2026, 11, 28, 5, 45),
+        status: ProofStatus.pending,
+        rewardAmount: 0,
+      );
+      final dupProof = ProofModel(
+        id: 'p_mock_dup',
+        challengeId: 'ch_1',
+        challengeTitle: 'Dậy sớm',
+        memberName: 'Lê Anh Tuấn',
+        imagePath: '/images/d.jpg',
+        ocrExtractedText: '05:30 AM',
+        submittedAt: DateTime(2026, 11, 28, 5, 30),
+        status: ProofStatus.pending,
+        rewardAmount: 20000.0,
+      );
+
+      await fundRepository.submitProof(rejectedProof);
+      await fundRepository.submitProof(zeroRewardProof);
+      await fundRepository.submitProof(dupProof);
+      await fundRepository.recordTransaction(FundTransactionModel(
+        id: 'tx_existing_dup',
+        proofId: dupProof.id,
+        type: TransactionType.thu,
+        amount: 20000.0,
+        title: 'Đã cộng trước',
+        category: 'Kỷ luật',
+        recipientOrSponsor: 'Quỹ',
+        createdAt: DateTime(2026, 11, 28, 6, 0),
+      ));
+
+      final r1 = await fundRepository.approveProofAndCreditFund(rejectedProof.id);
+      expect(r1.approved, isFalse);
+      expect(r1.status, ApprovalCreditStatus.alreadyProcessed);
+
+      final r2 = await fundRepository.approveProofAndCreditFund(zeroRewardProof.id);
+      expect(r2.approved, isFalse);
+      expect(r2.status, ApprovalCreditStatus.invalidRewardAmount);
+
+      final r3 = await fundRepository.approveProofAndCreditFund(dupProof.id);
+      expect(r3.approved, isFalse);
+      expect(r3.status, ApprovalCreditStatus.duplicateTransaction);
+      expect(await fundRepository.getBalance(), 20000.0);
     });
   });
 }
