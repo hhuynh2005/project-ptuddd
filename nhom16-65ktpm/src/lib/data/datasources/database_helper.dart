@@ -594,10 +594,8 @@ class DatabaseHelper {
     if (maps.isEmpty) return null;
     final user = UserModel.fromMap(maps.first);
 
-    // Xác thực mật khẩu: khớp mật khẩu trong CSDL, hoặc pass GoodDeeds@2026, hoặc pass 123
-    if (user.password == cleanPassword ||
-        cleanPassword == 'GoodDeeds@2026' ||
-        cleanPassword == '123') {
+    // Xác thực mật khẩu: chỉ khớp chính xác mật khẩu đang lưu trong CSDL
+    if (user.password == cleanPassword) {
       return user;
     }
     return null;

@@ -67,6 +67,35 @@ void main() {
       expect(authService.currentUser, isNull);
     });
 
+    test('Chặn mật khẩu yếu 123 và khoá hoàn toàn mật khẩu cũ sau khi đổi', () async {
+      // 1. Mật khẩu 123 không được phép đăng nhập
+      final weakLogin = await authService.login('2351170599', '123');
+      expect(weakLogin, isFalse);
+
+      // 2. Đăng nhập đúng bằng mật khẩu hiện tại
+      final currentLogin = await authService.login('2351170599', 'GoodDeeds@2026');
+      expect(currentLogin, isTrue);
+
+      // 3. Đổi sang mật khẩu mới
+      final changeSuccess = await authService.changePassword('BrandNewPass@2026');
+      expect(changeSuccess, isTrue);
+
+      // 4. Đăng xuất
+      authService.logout();
+
+      // 5. Đăng nhập lại bằng mật khẩu cũ phải THẤT BẠI
+      final oldPassLogin = await authService.login('2351170599', 'GoodDeeds@2026');
+      expect(oldPassLogin, isFalse);
+
+      // 6. Đăng nhập bằng mật khẩu 123 phải THẤT BẠI
+      final fakePassLogin = await authService.login('2351170599', '123');
+      expect(fakePassLogin, isFalse);
+
+      // 7. Chỉ mật khẩu mới đăng nhập THÀNH CÔNG
+      final newPassLogin = await authService.login('2351170599', 'BrandNewPass@2026');
+      expect(newPassLogin, isTrue);
+    });
+
     test('Đổi mật khẩu thành công và cập nhật phiên hiện tại', () async {
       final successLogin = await authService.login('2351170599', 'GoodDeeds@2026');
       expect(successLogin, isTrue);
