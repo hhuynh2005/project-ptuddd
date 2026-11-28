@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../data/repositories/fund_repository.dart';
 import '../../features/admin_review/admin_review_screen.dart';
 import '../../features/analytics/analytics_screen.dart';
+import '../../features/challenges/challenge_list_screen.dart';
 import '../../features/chatbot/chatbot_sheet.dart';
 import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/fund_ledger/fund_ledger_screen.dart';
 import '../../features/proof_submission/proof_submission_screen.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
@@ -39,6 +41,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _fetchPendingCount();
+    _fundRepo.fundUpdateVersion.addListener(_onFundUpdated);
+  }
+
+  void _onFundUpdated() {
+    if (mounted) {
+      _fetchPendingCount();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fundRepo.fundUpdateVersion.removeListener(_onFundUpdated);
+    super.dispose();
   }
 
   Future<void> _fetchPendingCount() async {
@@ -75,9 +90,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   List<Widget> get _screens => [
         DashboardScreen(onNavigateTab: _onSelectTab),
-        _buildChallengesView(),
+        ChallengeListScreen(onJoinChallenge: () => _onSelectTab(2)),
         const ProofSubmissionScreen(),
-        _buildFundLedgerView(),
+        FundLedgerScreen(onNavigateToAnalytics: () => _onSelectTab(4)),
         const AnalyticsScreen(),
       ];
 
@@ -270,125 +285,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Báo cáo',
           ),
         ],
-      ),
-    );
-  }
-
-  /// Tab Thử thách việc tốt
-  Widget _buildChallengesView() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Danh Mục Thử Thách',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: () => _onSelectTab(2),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Tham gia'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _buildChallengeCardItem(
-          title: 'Dậy sớm trước 6:00 sáng học bài',
-          desc: 'Chụp ảnh bàn học kèm đồng hồ rõ mốc thời gian.',
-          reward: '+20.000 đ',
-          category: 'Kỷ luật',
-          icon: Icons.alarm_rounded,
-          color: Colors.amber.shade800,
-        ),
-        _buildChallengeCardItem(
-          title: 'Gia sư dạy học cho trẻ em vùng cao',
-          desc: 'Dạy học 1 buổi toán, tiếng Việt hoặc kỹ năng sống.',
-          reward: '+50.000 đ',
-          category: 'Cộng đồng',
-          icon: Icons.school_rounded,
-          color: AppColors.primary,
-        ),
-        _buildChallengeCardItem(
-          title: 'Giải 5 bài toán tư duy / code thuật toán',
-          desc: 'Rèn luyện tư duy logic trên LeetCode/HackerRank.',
-          reward: '+30.000 đ',
-          category: 'Học tập',
-          icon: Icons.psychology_rounded,
-          color: Colors.purple,
-        ),
-        _buildChallengeCardItem(
-          title: 'Chạy bộ 3km hoặc thể thao nâng cao sức khỏe',
-          desc: 'Chụp ảnh màn hình ứng dụng Strava / Smartwatch.',
-          reward: '+25.000 đ',
-          category: 'Sức khỏe',
-          icon: Icons.directions_run_rounded,
-          color: Colors.blue,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChallengeCardItem({
-    required String title,
-    required String desc,
-    required String reward,
-    required String category,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(desc, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                category,
-                style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.bold, color: color),
-              ),
-            ),
-          ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.accentLight,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            reward,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.accent,
-            ),
-          ),
-        ),
       ),
     );
   }

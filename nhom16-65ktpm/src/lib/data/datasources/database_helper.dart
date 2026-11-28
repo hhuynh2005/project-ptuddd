@@ -6,6 +6,7 @@ import '../../core/database/database_factory_setup.dart';
 import '../models/challenge_model.dart';
 import '../models/fund_transaction_model.dart';
 import '../models/proof_model.dart';
+import '../services/proof_approval_credit_helper.dart';
 
 /// DatabaseHelper - Quản lý lưu trữ SQLite đa nền tảng (Cross-Platform Storage)
 /// Hỗ trợ mượt mà trên:
@@ -18,12 +19,13 @@ class DatabaseHelper {
 
   static Database? _database;
   static const String _dbName = 'gooddeeds_fund.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   // Tên các bảng
   static const String tableChallenges = 'challenges';
   static const String tableProofs = 'proofs';
   static const String tableFundTransactions = 'fund_transactions';
+  static const String tableUsers = 'users';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -49,6 +51,7 @@ class DatabaseHelper {
           } catch (_) {}
         },
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       );
     } catch (e) {
       // Fallback an toàn cho môi trường test VM nếu chưa nạp driver
@@ -61,7 +64,7 @@ class DatabaseHelper {
     }
   }
 
-  /// Tạo cấu trúc 3 bảng: challenges, proofs, fund_transactions
+  /// Tạo cấu trúc 4 bảng: challenges, proofs, fund_transactions, users
   Future<void> _onCreate(Database db, int version) async {
     // 1. Bảng challenges
     await db.execute('''
@@ -112,8 +115,81 @@ class DatabaseHelper {
       )
     ''');
 
+    // 4. Bảng users
+    await _createUsersTable(db);
+
     // Chèn dữ liệu mẫu ban đầu (Seed Data)
     await _seedInitialData(db);
+    await _seedUsersData(db);
+  }
+
+  /// Tạo bảng users lưu trữ tài khoản người dùng và phân quyền
+  Future<void> _createUsersTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableUsers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        studentId TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL,
+        avatar TEXT,
+        password TEXT NOT NULL
+      )
+    ''');
+  }
+
+  /// Nâng cấp CSDL khi version tăng
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createUsersTable(db);
+      await _seedUsersData(db);
+    }
+  }
+
+  /// Nạp sẵn 4 tài khoản của 4 thành viên nhóm 16 vào SQLite
+  Future<void> _seedUsersData(Database db) async {
+    const defaultUsers = [
+      UserModel(
+        id: 'usr_01',
+        name: 'Nguyễn Văn Huỳnh',
+        studentId: '2351170599',
+        email: 'huynh@gooddeeds.vn',
+        role: 'admin',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_02',
+        name: 'Lê Anh Tuấn',
+        studentId: '2151060296',
+        email: 'latuan@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_03',
+        name: 'Nguyễn Trung Kiên',
+        studentId: '2251172394',
+        email: 'kien@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+      UserModel(
+        id: 'usr_04',
+        name: 'Trần Anh Tuấn',
+        studentId: '2351170629',
+        email: 'tatuan@gooddeeds.vn',
+        role: 'member',
+        password: 'GoodDeeds@2026',
+      ),
+    ];
+
+    for (final u in defaultUsers) {
+      await db.insert(
+        tableUsers,
+        u.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 
   /// Khởi tạo dữ liệu mẫu ban đầu cho chiến dịch
@@ -236,50 +312,147 @@ class DatabaseHelper {
     );
   }
 
-  /// Duyệt minh chứng:
-  /// 1. Cập nhật trạng thái Proof sang 'approved'
-  /// 2. Tự động sinh bản ghi THU tương ứng trong bảng `fund_transactions`
-  Future<bool> approveProof(String proofId, {String? adminFeedback}) async {
+  /// Hỗ trợ truyền cơ sở dữ liệu in-memory độc lập trong môi trường kiểm thử tự động.
+  @visibleForTesting
+  Future<void> setDatabaseForTesting(Database? testDb) async {
+    _database = testDb;
+  }
+
+  /// Duyệt minh chứng & tự động cộng tiền THU vào quỹ (trả về kết quả chi tiết):
+  /// 1. Kiểm tra tồn tại, trạng thái pending, số tiền thưởng > 0 và chống cộng trùng theo proofId
+  /// 2. Truy vấn đúng danh mục (`category`) từ bảng `challenges`
+  /// 3. Cập nhật trạng thái Proof sang 'approved' & tự động ghi nhận giao dịch THU đính kèm ảnh minh chứng
+  /// 4. Tính toán số dư mới nhất ngay trong cùng SQLite transaction nguyên tử
+  Future<ApprovalCreditResult> approveProofAndCreditFund(
+    String proofId, {
+    String? adminFeedback,
+  }) async {
     final db = await database;
     return await db.transaction((txn) async {
       final List<Map<String, dynamic>> maps = await txn.query(
         tableProofs,
-        where: 'id = ? AND status = ?',
-        whereArgs: [proofId, ProofStatus.pending.name],
+        where: 'id = ?',
+        whereArgs: [proofId],
         limit: 1,
       );
 
-      if (maps.isEmpty) return false;
+      if (maps.isEmpty) {
+        return const ApprovalCreditResult(
+          approved: false,
+          status: ApprovalCreditStatus.notFound,
+          message: 'Không tìm thấy minh chứng cần phê duyệt.',
+        );
+      }
+
       final proof = ProofModel.fromMap(maps.first);
 
-      // Cập nhật trạng thái proof
-      await txn.update(
+      if (!proof.isPending) {
+        return const ApprovalCreditResult(
+          approved: false,
+          status: ApprovalCreditStatus.alreadyProcessed,
+          message: 'Minh chứng này đã được xử lý trước đó.',
+        );
+      }
+
+      if (proof.rewardAmount <= 0) {
+        return const ApprovalCreditResult(
+          approved: false,
+          status: ApprovalCreditStatus.invalidRewardAmount,
+          message: 'Số tiền thưởng của minh chứng phải lớn hơn 0.',
+        );
+      }
+
+      // Chống cộng trùng tiền Thu nếu đã có giao dịch gắn với proofId này
+      final existingTx = await txn.query(
+        tableFundTransactions,
+        columns: ['id'],
+        where: 'proofId = ? AND type = ?',
+        whereArgs: [proof.id, TransactionType.thu.name],
+        limit: 1,
+      );
+      if (existingTx.isNotEmpty) {
+        return const ApprovalCreditResult(
+          approved: false,
+          status: ApprovalCreditStatus.duplicateTransaction,
+          message: 'Minh chứng này đã được cộng tiền Thu vào quỹ trước đó.',
+        );
+      }
+
+      // Lấy đúng thông tin thử thách gốc để đồng bộ chính xác `category`
+      ChallengeModel? challenge;
+      final challengeMaps = await txn.query(
+        tableChallenges,
+        where: 'id = ?',
+        whereArgs: [proof.challengeId],
+        limit: 1,
+      );
+      if (challengeMaps.isNotEmpty) {
+        challenge = ChallengeModel.fromMap(challengeMaps.first);
+      }
+
+      final normalizedFeedback =
+          ProofApprovalCreditHelper.normalizeFeedback(adminFeedback);
+
+      // Cập nhật trạng thái proof sang Approved (chỉ cập nhật khi vẫn đang Pending)
+      final updatedCount = await txn.update(
         tableProofs,
         {
           'status': ProofStatus.approved.name,
-          'adminFeedback': adminFeedback ?? 'Minh chứng hợp lệ. Đã duyệt cộng quỹ!',
+          'adminFeedback': normalizedFeedback,
         },
-        where: 'id = ?',
-        whereArgs: [proofId],
+        where: 'id = ? AND status = ?',
+        whereArgs: [proofId, ProofStatus.pending.name],
       );
 
-      // Tự động sinh giao dịch THU vào sổ quỹ
-      final now = DateTime.now();
-      final newTx = FundTransactionModel(
-        id: 'tx_${now.millisecondsSinceEpoch}',
-        proofId: proof.id,
-        type: TransactionType.thu,
-        amount: proof.rewardAmount,
-        title: 'Tài trợ: ${proof.challengeTitle}',
-        category: proof.challengeTitle,
-        note: 'Minh chứng của ${proof.memberName} được duyệt thành công.',
-        recipientOrSponsor: 'Quỹ Bảo trợ Thử thách Việc tốt',
-        createdAt: now,
-      );
+      if (updatedCount == 0) {
+        return const ApprovalCreditResult(
+          approved: false,
+          status: ApprovalCreditStatus.alreadyProcessed,
+          message: 'Minh chứng này đã được xử lý trước đó.',
+        );
+      }
 
+      // Tự động sinh giao dịch THU chuẩn vào bảng `fund_transactions`
+      final newTx = ProofApprovalCreditHelper.buildIncomeTransaction(
+        proof: proof,
+        challenge: challenge,
+        adminFeedback: adminFeedback,
+      );
       await txn.insert(tableFundTransactions, newTx.toMap());
-      return true;
+
+      // Tính toán số dư quỹ mới nhất ngay trong transaction
+      final incomeRes = await txn.rawQuery(
+        'SELECT SUM(amount) as total FROM $tableFundTransactions WHERE type = ?',
+        [TransactionType.thu.name],
+      );
+      final expenseRes = await txn.rawQuery(
+        'SELECT SUM(amount) as total FROM $tableFundTransactions WHERE type = ?',
+        [TransactionType.chi.name],
+      );
+      final totalIncome = (incomeRes.first['total'] as num?)?.toDouble() ?? 0.0;
+      final totalExpense =
+          (expenseRes.first['total'] as num?)?.toDouble() ?? 0.0;
+
+      return ApprovalCreditResult(
+        approved: true,
+        status: ApprovalCreditStatus.credited,
+        message:
+            'Đã duyệt minh chứng của ${proof.memberName} và tự động cộng quỹ thành công.',
+        transaction: newTx,
+        newBalance: totalIncome - totalExpense,
+      );
     });
+  }
+
+  /// Duyệt minh chứng (tương thích ngược trả về bool):
+  /// 1. Cập nhật trạng thái Proof sang 'approved'
+  /// 2. Tự động sinh bản ghi THU tương ứng trong bảng `fund_transactions`
+  Future<bool> approveProof(String proofId, {String? adminFeedback}) async {
+    final result = await approveProofAndCreditFund(
+      proofId,
+      adminFeedback: adminFeedback,
+    );
+    return result.approved;
   }
 
   /// Từ chối minh chứng kèm lý do
@@ -380,6 +553,72 @@ class DatabaseHelper {
     );
 
     return maps.map((map) => FundTransactionModel.fromMap(map)).toList();
+  }
+
+  // ==========================================
+  // 4. CRUD CHO BẢNG USERS (TÀI KHOẢN & PHÂN QUYỀN)
+  // ==========================================
+  Future<List<UserModel>> getAllUsers() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(tableUsers);
+    return maps.map((map) => UserModel.fromMap(map)).toList();
+  }
+
+  Future<UserModel?> getUserById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableUsers,
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return UserModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<UserModel?> authenticateUser(String account, String password) async {
+    final db = await database;
+    final cleanAccount = account.trim().toLowerCase();
+    final cleanPassword = password.trim();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableUsers,
+      where: 'LOWER(email) = ? OR studentId = ?',
+      whereArgs: [cleanAccount, cleanAccount],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    final user = UserModel.fromMap(maps.first);
+
+    // Xác thực mật khẩu: khớp mật khẩu trong CSDL, hoặc pass GoodDeeds@2026, hoặc pass 123
+    if (user.password == cleanPassword ||
+        cleanPassword == 'GoodDeeds@2026' ||
+        cleanPassword == '123') {
+      return user;
+    }
+    return null;
+  }
+
+  Future<int> insertUser(UserModel user) async {
+    final db = await database;
+    return await db.insert(
+      tableUsers,
+      user.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateUserPassword(String userId, String newPassword) async {
+    final db = await database;
+    return await db.update(
+      tableUsers,
+      {'password': newPassword},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
   }
 
   Future<void> close() async {

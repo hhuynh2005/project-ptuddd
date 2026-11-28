@@ -3,7 +3,11 @@ import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/auth_service.dart';
+import '../../data/models/challenge_model.dart';
+import '../../data/models/fund_transaction_model.dart';
+import '../../data/models/proof_model.dart';
 import '../../data/repositories/fund_repository.dart';
+import '../challenges/challenge_detail_screen.dart';
 
 /// Màn hình Dashboard / Trang chủ GoodDeeds Fund chuẩn Senior Product Designer
 /// Phong cách: Material 3, Tone Teal & Cam ấm, bo góc 20-24px, đổ bóng mềm
@@ -29,13 +33,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _totalIncome = 0;
   double _totalExpense = 0;
   int _proofCount = 0;
+  List<ProofModel> _proofs = [];
+  List<ChallengeModel> _challenges = [];
+  List<FundTransactionModel> _recentTransactions = [];
 
   static const double _targetFund = 100000000; // 100 triệu VNĐ
+
+  static const List<ChallengeModel> _defaultChallenges = [
+    ChallengeModel(
+      id: 'ch_01',
+      title: 'Dậy sớm trước 6:00 sáng',
+      description:
+          'Chụp ảnh bàn học, đồng hồ hoặc app báo thức chứng minh bạn đã dậy và học bài trước 6h00.',
+      rewardAmount: 20000,
+      category: 'Kỷ luật',
+      icon: 'wb_sunny',
+    ),
+    ChallengeModel(
+      id: 'ch_02',
+      title: 'Gia sư dạy học cho trẻ em',
+      description:
+          'Dạy kèm 1 buổi học (toán, tiếng Việt, tiếng Anh) cho các em nhỏ có hoàn cảnh khó khăn.',
+      rewardAmount: 50000,
+      category: 'Gia sư',
+      icon: 'school',
+    ),
+    ChallengeModel(
+      id: 'ch_03',
+      title: 'Giải 5 bài toán tư duy / code thuật toán',
+      description:
+          'Chụp ảnh bài giải hoặc commit code trên nền tảng LeetCode/HackerRank rèn luyện tư duy.',
+      rewardAmount: 30000,
+      category: 'Học tập',
+      icon: 'psychology',
+    ),
+    ChallengeModel(
+      id: 'ch_04',
+      title: 'Chạy bộ 3km hoặc rèn luyện thể thao',
+      description:
+          'Chụp ảnh màn hình ứng dụng Strava / Smartwatch ghi nhận hoạt động chạy bộ nâng cao sức khỏe.',
+      rewardAmount: 25000,
+      category: 'Sức khỏe',
+      icon: 'directions_run',
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _fundRepo.fundUpdateVersion.addListener(_onFundUpdated);
+  }
+
+  void _onFundUpdated() {
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fundRepo.fundUpdateVersion.removeListener(_onFundUpdated);
+    super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
@@ -45,6 +104,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final income = await _fundRepo.getTotalIncome();
       final expense = await _fundRepo.getTotalExpense();
       final proofs = await _fundRepo.getProofs();
+      final challenges = await _fundRepo.getChallenges();
+      final transactions = await _fundRepo.getTransactions();
 
       if (mounted) {
         setState(() {
@@ -52,6 +113,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _totalIncome = income;
           _totalExpense = expense;
           _proofCount = proofs.length;
+          _proofs = proofs;
+          _challenges = challenges.isNotEmpty ? challenges : _defaultChallenges;
+          _recentTransactions = transactions.take(4).toList();
           _isLoading = false;
         });
       }
@@ -62,10 +126,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _totalIncome = 2000000;
           _totalExpense = 0;
           _proofCount = 4;
+          _challenges = _defaultChallenges;
           _isLoading = false;
         });
       }
     }
+  }
+
+  void _openChallengeDetail(ChallengeModel challenge) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChallengeDetailScreen(
+          challenge: challenge,
+          onJoinNow: () => widget.onNavigateTab?.call(2),
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _dynamicLeaderboard {
+    final baseMembers = [
+      {
+        'name': 'Nguyễn Văn Huỳnh',
+        'role': 'Trưởng nhóm',
+        'baseCount': 10,
+        'baseAmount': 500000.0,
+      },
+      {
+        'name': 'Lê Anh Tuấn',
+        'role': 'Database & Sổ Quỹ',
+        'baseCount': 8,
+        'baseAmount': 400000.0,
+      },
+      {
+        'name': 'Nguyễn Trung Kiên',
+        'role': 'Camera & AI OCR',
+        'baseCount': 7,
+        'baseAmount': 350000.0,
+      },
+      {
+        'name': 'Trần Anh Tuấn',
+        'role': 'Biểu đồ & Admin Review',
+        'baseCount': 6,
+        'baseAmount': 300000.0,
+      },
+    ];
+
+    for (final m in baseMembers) {
+      final name = m['name'] as String;
+      final approvedList =
+          _proofs.where((p) => p.memberName == name && p.isApproved);
+      final addedCount = approvedList.length;
+      final addedAmount =
+          approvedList.fold<double>(0.0, (acc, p) => acc + p.rewardAmount);
+
+      final totalCount = (m['baseCount'] as int) + addedCount;
+      final totalAmount = (m['baseAmount'] as double) + addedAmount;
+
+      m['totalCount'] = totalCount;
+      m['totalAmount'] = totalAmount;
+    }
+
+    baseMembers.sort((a, b) =>
+        (b['totalAmount'] as double).compareTo(a['totalAmount'] as double));
+
+    final badges = ['🏆', '🥈', '🥉', '⭐'];
+    for (int i = 0; i < baseMembers.length; i++) {
+      baseMembers[i]['rank'] = i + 1;
+      baseMembers[i]['badge'] = badges[i];
+      baseMembers[i]['amount'] =
+          '+${_currencyFormat.format(baseMembers[i]['totalAmount'])}';
+      baseMembers[i]['count'] =
+          '${baseMembers[i]['totalCount']} việc tốt';
+    }
+
+    return baseMembers;
   }
 
   @override
@@ -535,99 +670,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFeaturedChallengesCarousel(ThemeData theme) {
-    final challenges = [
-      {
-        'title': 'Dậy sớm trước 6:00 sáng',
-        'reward': '+20.000 đ',
-        'category': 'Kỷ luật',
-        'icon': Icons.alarm_rounded,
-        'color': Colors.amber.shade700,
-      },
-      {
-        'title': 'Gia sư dạy học cho trẻ em',
-        'reward': '+50.000 đ',
-        'category': 'Cộng đồng',
-        'icon': Icons.school_rounded,
-        'color': AppColors.primary,
-      },
-      {
-        'title': 'Giải 5 bài toán code tư duy',
-        'reward': '+30.000 đ',
-        'category': 'Học tập',
-        'icon': Icons.psychology_rounded,
-        'color': Colors.purple,
-      },
-      {
-        'title': 'Chạy bộ 3km rèn sức khỏe',
-        'reward': '+25.000 đ',
-        'category': 'Thể thao',
-        'icon': Icons.directions_run_rounded,
-        'color': Colors.blue,
-      },
-    ];
+    final list = _challenges.isNotEmpty ? _challenges : _defaultChallenges;
 
     return SizedBox(
-      height: 126,
+      height: 130,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: challenges.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final c = challenges[index];
-          final color = c['color'] as Color;
-          return Container(
-            width: 200,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: theme.cardTheme.color ?? theme.colorScheme.surface,
+          final c = list[index];
+          final color = ChallengeDetailScreen.getCategoryColor(c.category);
+          final icon = ChallengeDetailScreen.getIconData(c.icon);
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openChallengeDetail(c),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+              child: Container(
+                width: 210,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.cardTheme.color ?? theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(c['icon'] as IconData, color: color, size: 20),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentLight,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        c['reward'] as String,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.accent,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(icon, color: color, size: 20),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '+${c.formattedRewardAmount}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      c.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-                Text(
-                  c['title'] as String,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },
@@ -637,40 +752,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// 6. Bảng vinh danh Top 4 Podium
   Widget _buildLeaderboardPodium(ThemeData theme) {
-    final members = [
-      {
-        'rank': 1,
-        'name': 'Nguyễn Văn Huỳnh',
-        'role': 'Trưởng nhóm',
-        'amount': '+720.000 đ',
-        'count': '15 việc tốt',
-        'badge': '🏆',
-      },
-      {
-        'rank': 2,
-        'name': 'Lê Anh Tuấn',
-        'role': 'Database & Sổ Quỹ',
-        'amount': '+540.000 đ',
-        'count': '12 việc tốt',
-        'badge': '🥈',
-      },
-      {
-        'rank': 3,
-        'name': 'Nguyễn Trung Kiên',
-        'role': 'Camera & AI OCR',
-        'amount': '+460.000 đ',
-        'count': '10 việc tốt',
-        'badge': '🥉',
-      },
-      {
-        'rank': 4,
-        'name': 'Trần Anh Tuấn',
-        'role': 'Biểu đồ & Admin Review',
-        'amount': '+380.000 đ',
-        'count': '8 việc tốt',
-        'badge': '⭐',
-      },
-    ];
+    final members = _dynamicLeaderboard;
 
     return Card(
       child: Padding(
@@ -704,7 +786,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: members.length,
-              separatorBuilder: (_, __) => const Divider(height: 16),
+              separatorBuilder: (_, _) => const Divider(height: 16),
               itemBuilder: (context, index) {
                 final m = members[index];
                 return Row(
@@ -765,34 +847,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// 7. Hoạt động gần đây (Timeline)
+  /// 7. Hoạt động gần đây (Timeline động từ SQLite)
   Widget _buildRecentActivityTimeline(ThemeData theme) {
-    final activities = [
-      {
-        'title': 'Dậy sớm học bài thành công',
-        'member': 'Nguyễn Văn Huỳnh',
-        'time': '5:45 hôm nay',
-        'amount': '+20.000 đ',
-        'icon': Icons.alarm_on_rounded,
-        'color': AppColors.primary,
-      },
-      {
-        'title': 'Dạy kèm môn Toán cho em nhỏ',
-        'member': 'Lê Anh Tuấn',
-        'time': 'Hôm qua',
-        'amount': '+50.000 đ',
-        'icon': Icons.school_rounded,
-        'color': Colors.blueAccent,
-      },
-      {
-        'title': 'Tài trợ mở quỹ thiện nguyện',
-        'member': 'Cựu sinh viên KTPM K60',
-        'time': '3 ngày trước',
-        'amount': '+2.000.000 đ',
-        'icon': Icons.volunteer_activism_rounded,
-        'color': AppColors.accent,
-      },
-    ];
+    final timeFormat = DateFormat('HH:mm dd/MM');
 
     return Card(
       child: Padding(
@@ -812,58 +869,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: activities.length,
-              separatorBuilder: (_, __) => const Divider(height: 16),
-              itemBuilder: (context, index) {
-                final a = activities[index];
-                final color = a['color'] as Color;
-                return Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
+            if (_recentTransactions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Chưa có biến động quỹ nào được ghi nhận.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _recentTransactions.length,
+                separatorBuilder: (_, _) => const Divider(height: 16),
+                itemBuilder: (context, index) {
+                  final tx = _recentTransactions[index];
+                  final isIncome = tx.isIncome;
+                  final color = isIncome ? AppColors.primary : AppColors.accent;
+                  final icon = isIncome
+                      ? Icons.volunteer_activism_rounded
+                      : Icons.outbox_rounded;
+                  final prefix = isIncome ? '+' : '-';
+
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: color, size: 16),
                       ),
-                      child: Icon(a['icon'] as IconData, color: color, size: 16),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${a['member']} • ${a['time']}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: theme.colorScheme.onSurfaceVariant,
+                            Text(
+                              '${tx.recipientOrSponsor} • ${timeFormat.format(tx.createdAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(
-                      a['amount'] as String,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
+                      const SizedBox(width: 8),
+                      Text(
+                        '$prefix${_currencyFormat.format(tx.amount)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isIncome ? AppColors.success : AppColors.danger,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                    ],
+                  );
+                },
+              ),
           ],
         ),
       ),

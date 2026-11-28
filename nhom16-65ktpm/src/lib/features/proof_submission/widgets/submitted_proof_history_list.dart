@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/proof_model.dart';
 
-/// Widget hiển thị danh sách minh chứng vừa nộp và lưu trong bộ nhớ máy (Sprint 2).
+/// Widget hiển thị danh sách minh chứng vừa nộp và lưu trong bộ nhớ máy (Sprint 2 - Sprint 3).
 class SubmittedProofHistoryList extends StatelessWidget {
   const SubmittedProofHistoryList({
     super.key,
@@ -18,6 +18,15 @@ class SubmittedProofHistoryList extends StatelessWidget {
 
   String _formatCurrency(double amount) =>
       '${NumberFormat.decimalPattern('vi_VN').format(amount.round())} đ';
+
+  String _summarizeOcrText(String rawText) {
+    final cleaned = rawText
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join(' • ');
+    return cleaned;
+  }
 
   (String, Color) _statusBadge(ProofStatus status) {
     switch (status) {
@@ -75,7 +84,16 @@ class SubmittedProofHistoryList extends StatelessWidget {
                   fit: BoxFit.cover,
                 ),
               ),
-              const SizedBox(height: 8),
+              if (proof.ocrExtractedText.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Văn bản AI OCR: ${_summarizeOcrText(proof.ocrExtractedText)}',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 6),
               Text(
                 'Đường dẫn tệp: ${proof.imagePath}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -89,7 +107,7 @@ class SubmittedProofHistoryList extends StatelessWidget {
 
   Widget _buildLeadingThumbnail(BuildContext context, ProofModel proof) {
     if (!kIsWeb &&
-        proof.imagePath.isNotEmpty &&
+        proof.imagePath.isEmpty == false &&
         !proof.imagePath.startsWith('mock://')) {
       final file = File(proof.imagePath);
       if (file.existsSync()) {
@@ -170,6 +188,8 @@ class SubmittedProofHistoryList extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final item = proofs[index];
                   final (statusText, statusColor) = _statusBadge(item.status);
+                  final ocrPreview = _summarizeOcrText(item.ocrExtractedText);
+
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -223,6 +243,19 @@ class SubmittedProofHistoryList extends StatelessWidget {
                                 color: Colors.grey,
                               ),
                             ),
+                            if (ocrPreview.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(
+                                  'OCR: $ocrPreview',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.info,
+                                  ),
+                                ),
+                              ),
                             if (item.note.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
